@@ -104,7 +104,7 @@ def PCR(template, fwd_primer, rev_primer):
 	lList = last.findall(template)
 	if len(lList) > 1:
 		return ('',0,0)
-	if fwdTuple[2] < revTuple[1]:
+	if fwdTuple[1] < revTuple[1] and fwdTuple[2] < revTuple[2]:
 		return (template[fwdTuple[1]:revTuple[2]], fwdTuple[1], revTuple[2])
 	else:
 		return ('',0,0)
