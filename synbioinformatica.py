@@ -11,14 +11,14 @@ class SuffixNode(dict):
 	def __init__(self):
 		self.suffixLink = None # Suffix link as defined by Ukkonen
 
-	def Print(self,str,ws=""):
-		for t in self:
-			k,p,s = self[t]
-			if p == inf:
-				print "%s%s" % (ws, str[k:])
-			else:
-				print "%s%s" % (ws, str[k:p+1])
-				s.Print(str,ws+"|"*(p-k+1))
+	# def Print(self,str,ws=""):
+	# 	for t in self:
+	# 		k,p,s = self[t]
+	# 		if p == inf:
+	# 			print "%s%s" % (ws, str[k:])
+	# 		else:
+	# 			print "%s%s" % (ws, str[k:p+1])
+	# 			s.Print(str,ws+"|"*(p-k+1))
 		
 class LCS:
 	def __init__(self,str1,str2):
@@ -39,7 +39,7 @@ class LCS:
 			t = str[i]
 			#Traverse the boundary path of the suffix tree for str[0:i-1]
 			while True:
-				# Decend the suffixtree until state s has a transition for the stringstr[k:i-1]
+				# Descend the suffixtree until state s has a transition for the stringstr[k:i-1]
 				while i>k:
 					kk,pp,ss = s[str[k]]
 					if pp-kk < i-k:
@@ -52,7 +52,7 @@ class LCS:
 				if i>k:
 					tk = str[k]
 					kp,pp,sp = s[tk]
-					if t == str[kp+i-k]:
+					if t.lower() == str[kp+i-k].lower():
 						break
 					else: # Split the node
 						r = SuffixNode()
@@ -83,38 +83,130 @@ class LCS:
 		end = self.deepest[1]+1
 		return (self.str[start:end],start,end)
 
-	def Print(self):
-		self.root.Print(self.str)
+	# def Print(self):
+	# 	self.root.Print(self.str)
 
-def PCR(template, fwd_primer, rev_primer):
+class PrimerError(Exception):
+    """Exception raised for errors in the input.
+
+    Attributes:
+        expr -- input expression in which the error occurred
+        msg  -- explanation of the error
+    """
+
+    def __init__(self, primer, template, msg):
+        self.primer = primer
+        self.template = template
+        self.msg = msg
+
+#Note: PCR() product is not case preserving
+def PCR(template, primer_1, primer_2):
 	template = template + '$'
-	fwd_primer = fwd_primer + '$'
-	rev_primer = rev_primer + '$'
-	fwdMatch = LCS(template,fwd_primer)
-	fwdTuple = fwdMatch.LongestCommonSubstring()
-	first = re.compile(fwdTuple[0])
-	fList = first.findall(template)
-	if len(fList) > 1:
-		return ('',0,0)
-	emails = re.findall(r'', fwdTuple[0])
-	revcomp = reverseComplement(rev_primer)
-	revMatch = LCS(template,revcomp+'$')
-	revTuple = revMatch.LongestCommonSubstring()
-	last = re.compile(revTuple[0])
-	lList = last.findall(template)
-	if len(lList) > 1:
-		return ('',0,0)
-	if fwdTuple[1] < revTuple[1] and fwdTuple[2] < revTuple[2]:
-		return (template[fwdTuple[1]:revTuple[2]], fwdTuple[1], revTuple[2])
-	else:
-		return ('',0,0)
+	primer_1 = primer_1 + '$'
+	primer_2 = primer_2 + '$'
+	try:
+		indices = [0,0,0,0,0,0]
+		counter = 0
+		nextOrientation = 0
+		for currentPrimer in (primer_1, primer_2):
+			fwdMatch = LCS(template.upper(),currentPrimer.upper())
+			fwdTuple = fwdMatch.LongestCommonSubstring()
+			first = re.compile(fwdTuple[0], re.IGNORECASE)
+			fList = first.findall(template)
+			matchCount = 0
+			matchedAlready = 0
+			start = 0
+			stop = 0
+			for match in fList:
+				if len(match) > 10:
+					matchCount = matchCount + 1
+			if matchCount == 0 & len(fList) > 0:
+				tooShort1 = True
+			else:
+				tooShort1 = False
+			if matchCount > 1:
+				if nextOrientation == 2: 
+					raise PrimerError(currentPrimer,template,'Primers have same forward (5\'->3\') orientation AND primer anneals to multiple sites in template:')
+				raise PrimerError(currentPrimer,template,'Primer anneals to multiple sites in template:')
+			elif matchCount == 1:
+				if nextOrientation == 2: 
+					raise PrimerError(currentPrimer,template,'Primers have same forward (5\'->3\') orientation')
+				matchedAlready = 1
+			revcomp = reverseComplement(currentPrimer)
+			revMatch = LCS(template.upper(),revcomp.upper()+'$')
+			revTuple = revMatch.LongestCommonSubstring()
+			last = re.compile(revTuple[0], re.IGNORECASE)
+			lList = last.findall(template)
+			matchCount = 0
+			for match in lList:
+				if len(match) > 10:
+					matchCount = matchCount + 1
+			if matchCount == 0 & len(lList) > 0:
+				tooShort2 = True
+			else:
+				tooShort2 = False
+			if matchCount > 1:	
+				if matchedAlready == 1:
+					if nextOrientation == 1: 
+						raise PrimerError(currentPrimer,template,'Primers have same reverse (3\'->5\') orientation AND primer anneals to multiple sites in template AND it primes in both orientations:')
+					raise PrimerError(currentPrimer,template,'Primer anneals to multiple sites in template AND it primes in both orientations:')
+				if nextOrientation == 1: 
+					raise PrimerError(currentPrimer,template,'Primers have same reverse (3\'->5\') orientation AND primer anneals to multiple sites in template:')
+				raise PrimerError(currentPrimer,template,'Primer anneals to multiple sites in template:')
+			elif matchCount == 1: 
+				if matchedAlready == 1:
+					if nextOrientation == 1: 
+						raise PrimerError(currentPrimer,template,'Primers have same reverse (3\'->5\') orientation AND primer primes in both orientations:')
+					raise PrimerError(currentPrimer,template,'Primer primes in both orientations:')
+				else:
+					matchedAlready = 2
+			if matchedAlready == 0:
+				if tooShort1 and tooShort2:
+					raise PrimerError(currentPrimer, template,'Primer is too short and does not anneal')
+				raise PrimerError(currentPrimer,template,'Primer does not prime in either orientation:')
+			if matchedAlready == 1:
+				indices[counter] = fwdTuple[1]
+				counter = counter + 1
+				indices[counter] = fwdTuple[2]
+				counter = counter + 1
+				indices[counter] = 'fwd'
+				counter = counter + 1
+				nextOrientation = 2
+			if matchedAlready == 2:
+				indices[counter] = revTuple[1]
+				counter = counter + 1
+				indices[counter] = revTuple[2]
+				counter = counter + 1
+				indices[counter] = 'rev'
+				counter = counter + 1
+				nextOrientation = 1
+		if indices[2] == 'fwd':
+			fwdStart = indices[0]
+			fwdEnd = indices[1]
+			revStart = indices[3]
+			revEnd = indices[4]
+			if fwdStart < revStart and fwdEnd < revEnd:
+				return (template[fwdStart:revEnd], fwdStart, revEnd)
+			else:
+				raise PrimerError((primer_1, primer_2),template,'Forward primer beginning and ending indices must be before those of the reverse:')
+		elif indices[2] == 'rev':
+			fwdStart = indices[3]
+			fwdEnd = indices[4]
+			revStart = indices[0]
+			revEnd = indices[1]
+			if fwdStart < revStart and fwdEnd < revEnd:
+				return (template[fwdStart:revEnd], fwdStart, revEnd)
+			else:
+				raise PrimerError((primer_1, primer_2),template,'Forward primer beginning and ending indices must be before those of the reverse:')
+	except PrimerError as error:
+		print error.msg
+		print 'primer: ' 
+		print error.primer
+		print 'template: '
+		print error.template
+		sys.exit()
 
+# Note: reverseComplement() is case preserving
 def reverseComplement(sequence):
-  complement = {'a':'t','c':'g','g':'c','t':'a','n':'n'}
-  return "".join([complement.get(nucleotide.lower(), '') for nucleotide in sequence[::-1]])
-
-# def main():
-# 	print PCR('aatgctactactattagtagaattgatgccaccttttcagctcgcgccccaaatgaaaatatagctaaacaggttattgaccatttgcgaaatgtatctaatggtcaaactaaatctactcgttcgcagaattgggaatcaactgttatatggaatgaaacttccagacaccgtactttagttgcatatttaaaacatgttgagctacagcattatattcagcaattaagctctaagccatccgcaaaaatgacctcttatcaaaaggagcaattaaaggtactctctaatcctgacctgttggagtttgcttccggtctggttcgctttgaagctcgaattaaaacgcgatatttgaagtctttcgggcttcctcttaatctttttgatgcaatccgctttgcttctgactataatagtcagggtaaagacctgatttttgatttatggtcattctcgttttctgaactgtttaaagcatttgagggggattcaatgaatatttatgacgattccgcagtattggacgctatccagtctaaacattttactattaccccctctggcaaaacttcttttgcaaaagcctctcgctattttggtttttatcgtcgtctggtaaacgagggttatgatagtgttgctcttactatgcctcgtaattccttttggcgttatgtatctgcattagttgaatgtggtattcctaaatctcaactgatgaatctttctacctgtaataatgttgttccgttagttcgttttattaacgtagatttttcttcccaacgtcctgactggtataatgagccagttcttaaaatcgcataaggtaattcacaatgattaaagttgaaattaaaccatctcaagcccaatttactactcgttctggtgtttctcgtcagggcaagccttattcactgaatgagcagctttgttacgttgatttgggtaatgaatatccggttcttgtcaagattactcttgatgaaggtcagccagcctatgcgcctggtctgtacaccgttcatctgtcctctttcaaagttggtcagttcggttcccttatgattgaccgtctgcgcctcgttccggctaagtaacatggagcaggtcgcggatttcgacacaatttatcaggcgatgatacaaatctccgttgtactttgtttcgcgcttggtataatcgctgggggtcaaagatgagtgttttagtgtattcttttgcctctttcgttttaggttggtgccttcgtagtggcattacgtattttacccgtttaatggaaacttcctcatgaaaaagtctttagtcctcaaagcctctgtagccgttgctaccctcgttccgatgctgtctttcgctgctgagggtgacgatcccgcaaaagcggcctttaactccctgcaagcctcagcgaccgaatatatcggttatgcgtgggcgatggttgttgtcattgtcggcgcaactatcggtatcaagctgtttaagaaattcacctcgaaagcaagctgataaaccgatacaattaaaggctccttttggagccttttttttggagattttcaacgtgaaaaaattattattcgcaattcctttagtggtacctttctattctcactcggccgaaactgttgaaagttgtttagcaaaatcccatacagaaaattcatttactaacgtctggaaagacgacaaaactttagatcgttacgctaactatgagggctgtctgtggaatgctacaggcgttgtagtttgtactggtgacgaaactcagtgttacggtacatgggttcctattgggcttgctatccctgaaaatgagggtggtggctctgagggtggcggttctgagggtggcggttctgagggtggcggtactaaacctcctgagtacggtgatacacctattccgggctatacttatatcaaccctctcgacggcacttatccgcctggtactgagcaaaaccccgctaatcctaatccttctcttgaggagtctcagcctcttaatactttcatgtttcagaataataggttccgaaataggcagggggcattaactgtttatacgggcactgttactcaaggcactgaccccgttaaaacttattaccagtacactcctgtatcatcaaaagccatgtatgacgcttactggaacggtaaattcagagactgcgctttccattctggctttaatgaggatttatttgtttgtgaatatcaaggccaatcgtctgacctgcctcaacctcctgtcaatgctggcggcggctctggtggtggttctggtggcggctctgagggtggtggctctgagggtggcggttctgagggtggcggctctgagggaggcggttccggtggtggctctggttccggtgattttgattatgaaaagatggcaaacgctaataagggggctatgaccgaaaatgccgatgaaaacgcgctacagtctgacgctaaaggcaaacttgattctgtcgctactgattacggtgctgctatcgatggtttcattggtgacgtttccggccttgctaatggtaatggtgctactggtgattttgctggctctaattcccaaatggctcaagtcggtgacggtgataattcacctttaatgaataatttccgtcaatatttaccttccctccctcaatcggttgaatgtcgcccttttgtctttggcgctggtaaaccatatgaattttctattgattgtgacaaaataaacttattccgtggtgtctttgcgtttcttttatatgttgccacctttatgtatgtattttctacgtttgctaacatactgcgtaataaggagtcttaatcatgccagttcttttgggtattccgttattattgcgtttcctcggtttccttctggtaactttgttcggctatctgcttacttttcttaaaaagggcttcggtaagatagctattgctatttcattgtttcttgctcttattattgggcttaactcaattcttgtgggttatctctctgatattagcgctcaattaccctctgactttgttcagggtgttcagttaattctcccgtctaatgcgcttccctgtttttatgttattctctctgtaaaggctgctattttcatttttgacgttaaacaaaaaatcgtttcttatttggattgggataaataatatggctgtttattttgtaactggcaaattaggctctggaaagacgctcgttagcgttggtaagattcaggataaaattgtagctgggtgcaaaatagcaactaatcttgatttaaggcttcaaaacctcccgcaagtcgggaggttcgctaaaacgcctcgcgttcttagaataccggataagccttctatatctgatttgcttgctattgggcgcggtaatgattcctacgatgaaaataaaaacggcttgcttgttctcgatgagtgcggtacttggtttaatacccgttcttggaatgataaggaaagacagccgattattgattggtttctacatgctcgtaaattaggatgggatattatttttcttgttcaggacttatctattgttgataaacaggcgcgttctgcattagctgaacatgttgtttattgtcgtcgtctggacagaattactttaccttttgtcggtactttatattctcttattactggctcgaaaatgcctctgcctaaattacatgttggcgttgttaaatatggcgattctcaattaagccctactgttgagcgttggctttatactggtaagaatttgtataacgcatatgatactaaacaggctttttctagtaattatgattccggtgtttattcttatttaacgccttatttatcacacggtcggtatttcaaaccattaaatttaggtcagaagatgaaattaactaaaatatatttgaaaaagttttctcgcgttctttgtcttgcgattggatttgcatcagcatttacatatagttatataacccaacctaagccggaggttaaaaaggtagtctctcagacctatgattttgataaattcactattgactcttctcagcgtcttaatctaagctatcgctatgttttcaaggattctaagggaaaattaattaatagcgacgatttacagaagcaaggttattcactcacatatattgatttatgtactgtttccattaaaaaaggtaattcaaatgaaattgttaaatgtaattaattttgttttcttgatgtttgtttcatcatcttcttttgctcaggtaattgaaatgaataattcgcctctgcgcgattttgtaacttggtattcaaagcaatcaggcgaatccgttattgtttctcccgatgtaaaaggtactgttactgtatattcatctgacgttaaacctgaaaatctacgcaatttctttatttctgttttacgtgcaaataattttgatatggtaggttctaacccttccattattcagaagtataatccaaacaatcaggattatattgatgaattgccatcatctgataatcaggaatatgatgataattccgctccttctggtggtttctttgttccgcaaaatgataatgttactcaaacttttaaaattaataacgttcgggcaaaggatttaatacgagttgtcgaattgtttgtaaagtctaatacttctaaatcctcaaatgtattatctattgacggctctaatctattagttgttagtgctcctaaagatattttagataaccttcctcaattcctttcaactgttgatttgccaactgaccagatattgattgagggtttgatatttgaggttcagcaaggtgatgctttagatttttcatttgctgctggctctcagcgtggcactgttgcaggcggtgttaatactgaccgcctcacctctgttttatcttctgctggtggttcgttcggtatttttaatggcgatgttttagggctatcagttcgcgcattaaagactaatagccattcaaaaatattgtctgtgccacgtattcttacgctttcaggtcagaagggttctatctctgttggccagaatgttccttttattactggtcgtgtgactggtgaatctgccaatgtaaataatccatttcagacgattgagcgtcaaaatgtaggtatttccatgagcgtttttcctgttgcaatggctggcggtaatattgttctggatattaccagcaaggccgatagtttgagttcttctactcaggcaagtgatgttattactaatcaaagaagtattgctacaacggttaatttgcgtgatggacagactcttttactcggtggcctcactgattataaaaacacttctcaggattctggcgtaccgttcctgtctaaaatccctttaatcggcctcctgtttagctcccgctctgattctaacgaggaaagcacgttatacgtgctcgtcaaagcaaccatagtacgcgccctgtagcggcgcattaagcgcggcgggtgtggtggttacgcgcagcgtgaccgctacacttgccagcgccctagcgcccgctcctttcgctttcttcccttcctttctcgccacgttcgccggctttccccgtcaagctctaaatcgggggctccctttagggttccgatttagtgctttacggcacctcgaccccaaaaaacttgatttgggtgatggttcacgtagtgggccatcgccctgatagacggtttttcgccctttgacgttggagtccacgttctttaatagtggactcttgttccaaactggaacaacactcaaccctatctcgggctattcttttgatttataagggattttgccgatttcggaaccaccatcaaacaggattttcgcctgctggggcaaaccagcgtggaccgcttgctgcaactctctcagggccaggcggtgaagggcaatcagctgttgcccgtctcactggtgaaaagaaaaaccaccctggcgcccaatacgcaaaccgcctctccccgcgcgttggccgattcattaatgcagctggcacgacaggtttcccgactggaaagcgggcagtgagcgcaacgcaattaatgtgagttagctcactcattaggcaccccaggctttacactttatgcttccggctcgtatgttgtgtggaattgtgagcggataacaatttcacacaggaaacagctatgaccatgattacgccaagcttgcatgcctgcaggtcctcgaattcactggccgtcgttttacaacgtcgtgactgggaaaaccctggcgttacccaacttaatcgccttgcagcacatccccctttcgccagctggcgtaatagcgaagaggcccgcaccgatcgcccttcccaacagttgcgcagcctgaatggcgaatggcgctttgcctggtttccggcaccagaagcggtgccggaaagctggctggagtgcgatcttcctgaggccgatactgtcgtcgtcccctcaaactggcagatgcacggttacgatgcgcccatctacaccaacgtgacctatcccattacggtcaatccgccgtttgttcccacggagaatccgacgggttgttactcgctcacatttaatgttgatgaaagctggctacaggaaggccagacgcgaattatttttgatggcgttcctattggttaaaaaatgagctgatttaacaaaaatttaatgcgaattttaacaaaatattaacgtttacaatttaaatatttgcttatacaatcttcctgtttttggggcttttctgattatcaaccggggtacatatgattgacatgctagttttacgattaccgttcatcgattctcttgtttgctccagactctcaggcaatgacctgatagcctttgtagatctctcaaaaatagctaccctctccggcattaatttatcagctagaacggttgaatatcatattgatggtgatttgactgtctccggcctttctcacccttttgaatctttacctacacattactcaggcattgcatttaaaatatatgagggttctaaaaatttttatccttgcgttgaaataaaggcttctcccgcaaaagtattacagggtcataatgtttttggtacaaccgatttagctttatgctctgaggctttattgcttaattttgctaattctttgccttgcctgtatgatttattggatgtt','attagtagaattgatgccacctttt','actattatagtcagaagcaaag')
-
-# if __name__ == "__main__":
-# 	main()
+	basecomplement = {'G':'C', 'A':'T', 'T':'A', 'C':'G', 'R':'Y', 'Y':'R', 'M':'K', 'K':'M', 'S':'S', 'W':'W', 'H':'D', 'B':'V', 'V':'B', 'D':'H', 'N':'N','g':'c', 'a':'t', 't':'a', 'c':'g', 'r':'y', 'y':'r', 'm':'k', 'k':'m', 's':'s', 'w':'w', 'h':'d', 'b':'v', 'v':'b', 'd':'h', 'n':'n'}
+  	return "".join([basecomplement.get(nucleotide.lower(), '') for nucleotide in sequence[::-1]])
