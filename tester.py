@@ -1,6 +1,11 @@
 #!/usr/bin/python -tt
 # Copyright Nima Emami, 2012
 
+# PCR function tester script
+# Takes 3 invocation arguments: 
+# template, forward primer, reverse primer (in that order)
+# returns tuple: (PCR product, start index, end index)
+
 import synbioinformatica, sys
 
 def main(template, fwd_primer, rev_primer):
