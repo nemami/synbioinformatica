@@ -3,6 +3,9 @@
 
 import sys, random, re
 
+# TODO: regex variable nulceotide matching
+# TODO: comment code
+
 # Suffix Tree implementation from: http://chipsndips.livejournal.com/2005/12/07/
 inf = 1000000
 
@@ -87,10 +90,11 @@ class LCS:
 	# 	self.root.Print(self.str)
 
 class PrimerError(Exception):
-    """Exception raised for errors in the input.
+    """Exception raised for errors in the primer(s) input.
 
     Attributes:
-        expr -- input expression in which the error occurred
+        primer -- sequence for one (or both, in tuple form) of the given input primers
+        template -- sequence for the given PCR template
         msg  -- explanation of the error
     """
 
@@ -107,11 +111,19 @@ def PCR(template, primer_1, primer_2):
 	try:
 		indices = [0,0,0,0,0,0]
 		counter = 0
+		lcs_stub = ''
+		rightStub = ''
+		leftStub = ''
+		iteration = 0
 		nextOrientation = 0
 		for currentPrimer in (primer_1, primer_2):
 			fwdMatch = LCS(template.upper(),currentPrimer.upper())
 			fwdTuple = fwdMatch.LongestCommonSubstring()
 			first = re.compile(fwdTuple[0], re.IGNORECASE)
+			print currentPrimer
+			print fwdTuple[0]
+			fwd_stub = currentPrimer[0:len(currentPrimer)-len(fwdTuple[0])-1]
+			print fwd_stub
 			fList = first.findall(template)
 			matchCount = 0
 			matchedAlready = 0
@@ -136,6 +148,10 @@ def PCR(template, primer_1, primer_2):
 			revMatch = LCS(template.upper(),revcomp.upper()+'$')
 			revTuple = revMatch.LongestCommonSubstring()
 			last = re.compile(revTuple[0], re.IGNORECASE)
+			print currentPrimer
+			print revTuple[0]
+			rev_stub = currentPrimer[len(revTuple[0]):len(currentPrimer)]
+			print rev_stub
 			lList = last.findall(template)
 			matchCount = 0
 			for match in lList:
@@ -172,6 +188,8 @@ def PCR(template, primer_1, primer_2):
 				indices[counter] = 'fwd'
 				counter = counter + 1
 				nextOrientation = 2
+				leftStub = fwd_stub
+				print 'chose leftStub '+leftStub
 			if matchedAlready == 2:
 				indices[counter] = revTuple[1]
 				counter = counter + 1
@@ -180,13 +198,15 @@ def PCR(template, primer_1, primer_2):
 				indices[counter] = 'rev'
 				counter = counter + 1
 				nextOrientation = 1
+				rightStub = reverseComplement(rev_stub)
+				print 'chose rightStub '+rightStub
 		if indices[2] == 'fwd':
 			fwdStart = indices[0]
 			fwdEnd = indices[1]
 			revStart = indices[3]
 			revEnd = indices[4]
 			if fwdStart < revStart and fwdEnd < revEnd:
-				return (template[fwdStart:revEnd], fwdStart, revEnd)
+				return (leftStub+template[fwdStart:revEnd]+rightStub, fwdStart, revEnd)
 			else:
 				raise PrimerError((primer_1, primer_2),template,'Forward primer beginning and ending indices must be before those of the reverse:')
 		elif indices[2] == 'rev':
@@ -195,7 +215,7 @@ def PCR(template, primer_1, primer_2):
 			revStart = indices[0]
 			revEnd = indices[1]
 			if fwdStart < revStart and fwdEnd < revEnd:
-				return (template[fwdStart:revEnd], fwdStart, revEnd)
+				return (leftStub+template[fwdStart:revEnd]+rightStub, fwdStart, revEnd)
 			else:
 				raise PrimerError((primer_1, primer_2),template,'Forward primer beginning and ending indices must be before those of the reverse:')
 	except PrimerError as error:
