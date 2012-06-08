@@ -1,5 +1,5 @@
 import re, sys, random, Bio
-#this code is going be hacky and functional for now... may revisit to make it prettier and more objecty
+##this code is going be hacky and functional for now... may revisit to make it prettier and more objecty
 class DNA(object):
 	#for linear DNAs, this string should include the entire sequence (5' and 3' overhangs included
 	def __init__(self, seq=""):
