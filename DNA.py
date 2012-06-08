@@ -43,8 +43,8 @@ class DNA(object):
 		self.overhang = "circular" #blunt, 3', 5', circular... should be a class in itself?
 		self.overhang_seq = ""
 		#PCR product, miniprep, genomic DNA
-		self.type = ""
-		self.topology = "circular" #circular or linear
+		self.provenance = ""
+		self.topology = "circular" #circular or linear, genomic should be considered linear
 	def reversecomp(self):
 		return revcomp(self.sequence) #reverses string
 		#code to handle the overhangs & other object attributes
@@ -108,17 +108,32 @@ class restrictionEnzyme(object):
 		alpha_only_site = re.sub('[^a-zA-Z]+', '', recognitionsite)
 		print ToRegex(alpha_only_site, name)
 		self.compsite = ToRegex(alpha_only_site, name)
+		#convert information about where the restriction happens to an offset on the top and bottom strand
+		#for example, BamHI -> 1/5 with respect to the start of the site match
+		hasNum = re.compile('\d+/\d+')
+		for m in hasNum.finditer(recognitionsite):
+			print m.start(), m.group()
+		p = re.compile("/")
+		self.top_strand_offset = 0
+		for m in p.finditer(recognitionsite):
+			self.top_strand_offset = m.start()
+	
+
 	def prettyPrint(self):
 		print "Name: ", self.name, "Recognition Site: ", self.recognition_site
 	def find_sites(self, seq):
 		rease_re = re.compile(self.compsite)
 		for m in rease_re.finditer(seq.upper()):
-			print m.start(), m.group()
+			s = m.group()
+			print s
+			for k in s.split("/"):
+				print k
 ###PCR function###
 
-BamHI = restrictionEnzyme("BamHI", "", "", "", "", "", 65, 37, "ggatcc(16/5)")
+BamHI = restrictionEnzyme("BamHI", "", "", "", "", "", 65, 37, "g/gatcc")
 BamHI.find_sites("GGGGGGGATcCCCCCggatccCCCCCgaggagcccccccctcctcCCCC")
 
+BseRI = restrictionEnzyme("BseRI", "", "", "",  "", "", 65, 37, "gaggag(14/12)")
 #accepts two primers and list of input template DNAs
 def SOE(primer1, primer2, templates):
 	return 0
