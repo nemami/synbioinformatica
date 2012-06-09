@@ -2,9 +2,7 @@
 # Copyright Nima Emami, 2012
 
 import sys, random, re
-
-# TODO: regex variable nulceotide matching
-# TODO: comment code
+from DNA import DNA
 
 # Suffix Tree implementation from: http://chipsndips.livejournal.com/2005/12/07/
 inf = 1000000
@@ -13,15 +11,6 @@ inf = 1000000
 class SuffixNode(dict):
 	def __init__(self):
 		self.suffixLink = None # Suffix link as defined by Ukkonen
-
-	# def Print(self,str,ws=""):
-	# 	for t in self:
-	# 		k,p,s = self[t]
-	# 		if p == inf:
-	# 			print "%s%s" % (ws, str[k:])
-	# 		else:
-	# 			print "%s%s" % (ws, str[k:p+1])
-	# 			s.Print(str,ws+"|"*(p-k+1))
 		
 class LCS:
 	def __init__(self,str1,str2):
@@ -86,9 +75,6 @@ class LCS:
 		end = self.deepest[1]+1
 		return (self.str[start:end],start,end)
 
-	# def Print(self):
-	# 	self.root.Print(self.str)
-
 class PrimerError(Exception):
     """Exception raised for errors in the primer(s) input.
 
@@ -104,10 +90,10 @@ class PrimerError(Exception):
         self.msg = msg
 
 #Note: PCR() product is not case preserving
-def PCR(template, primer_1, primer_2):
-	template = template + '$'
-	primer_1 = primer_1 + '$'
-	primer_2 = primer_2 + '$'
+def PCR(templateDNA, primer1DNA, primer2DNA):
+	template = templateDNA.sequence + '$'
+	primer_1 = primer1DNA.sequence + '$'
+	primer_2 = primer2DNA.sequence + '$'
 	try:
 		indices = [0,0,0,0,0,0]
 		counter = 0
@@ -120,10 +106,7 @@ def PCR(template, primer_1, primer_2):
 			fwdMatch = LCS(template.upper(),currentPrimer.upper())
 			fwdTuple = fwdMatch.LongestCommonSubstring()
 			first = re.compile(fwdTuple[0], re.IGNORECASE)
-			print currentPrimer
-			print fwdTuple[0]
 			fwd_stub = currentPrimer[0:len(currentPrimer)-len(fwdTuple[0])-1]
-			print fwd_stub
 			fList = first.findall(template)
 			matchCount = 0
 			matchedAlready = 0
@@ -148,10 +131,7 @@ def PCR(template, primer_1, primer_2):
 			revMatch = LCS(template.upper(),revcomp.upper()+'$')
 			revTuple = revMatch.LongestCommonSubstring()
 			last = re.compile(revTuple[0], re.IGNORECASE)
-			print currentPrimer
-			print revTuple[0]
 			rev_stub = currentPrimer[len(revTuple[0]):len(currentPrimer)]
-			print rev_stub
 			lList = last.findall(template)
 			matchCount = 0
 			for match in lList:
@@ -189,7 +169,6 @@ def PCR(template, primer_1, primer_2):
 				counter = counter + 1
 				nextOrientation = 2
 				leftStub = fwd_stub
-				print 'chose leftStub '+leftStub
 			if matchedAlready == 2:
 				indices[counter] = revTuple[1]
 				counter = counter + 1
@@ -199,25 +178,30 @@ def PCR(template, primer_1, primer_2):
 				counter = counter + 1
 				nextOrientation = 1
 				rightStub = reverseComplement(rev_stub)
-				print 'chose rightStub '+rightStub
 		if indices[2] == 'fwd':
 			fwdStart = indices[0]
 			fwdEnd = indices[1]
 			revStart = indices[3]
 			revEnd = indices[4]
 			if fwdStart < revStart and fwdEnd < revEnd:
-				return (leftStub+template[fwdStart:revEnd]+rightStub, fwdStart, revEnd)
+				return DNA(leftStub+template[fwdStart:revEnd]+rightStub,'PCR product')
 			else:
-				raise PrimerError((primer_1, primer_2),template,'Forward primer beginning and ending indices must be before those of the reverse:')
+				if templateDNA.topology == 'circular':
+					return DNA(template[fwdStart:len(template)-1]+template[:revStart],'PCR product')
+				else:
+					raise PrimerError((primer1DNA.sequence, primer2DNA.sequence),template,'Forward primer beginning and ending indices must be before those of the reverse:')
 		elif indices[2] == 'rev':
 			fwdStart = indices[3]
 			fwdEnd = indices[4]
 			revStart = indices[0]
 			revEnd = indices[1]
 			if fwdStart < revStart and fwdEnd < revEnd:
-				return (leftStub+template[fwdStart:revEnd]+rightStub, fwdStart, revEnd)
+				return DNA(leftStub+template[fwdStart:revEnd]+rightStub,'PCR product')
 			else:
-				raise PrimerError((primer_1, primer_2),template,'Forward primer beginning and ending indices must be before those of the reverse:')
+				if templateDNA.topology == 'circular':
+					return DNA(template[fwdStart:len(template)-1]+template[:revStart],'PCR product')
+				else:
+					raise PrimerError((primer1DNA.sequence, primer2DNA.sequence),template,'Forward primer beginning and ending indices must be before those of the reverse:')
 	except PrimerError as error:
 		print error.msg
 		print 'primer: ' 
