@@ -5,6 +5,8 @@ import sys, random, re, math
 from DNA import DNA
 from decimal import *
 
+# TODO: identification of primers on the edge of a circular sequence
+
 # Suffix Tree implementation from: http://chipsndips.livejournal.com/2005/12/07/
 inf = 1000000
 
