@@ -5,7 +5,9 @@ import sys, random, re, math
 from DNA import DNA, restrictionEnzyme, Overhang
 from decimal import *
 
-# TODO: identification of primers on the edge of a circular sequence
+# TODO: for PCR, identification of primers on the edge of a circular sequence
+# TODO: Digest function Error/Exception handling, e.g. proximity to terminal sequence on a linear fragment
+# TODO: Comment digest function
 
 # Read in all enzymes:
 def EnzymeDictionary():
@@ -339,7 +341,7 @@ def getDhHash():
 	return dictionary
 
 def digest(InputDNA, Enzymes):
-	# TODO: multiple enzymes
+	# TODO: Error/Exception handling, e.g. proximity to terminal sequence on a linear fragment
 	indices = []
 	frags = []
 	sites = ""
