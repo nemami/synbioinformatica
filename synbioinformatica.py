@@ -393,44 +393,5 @@ def digest(InputDNA, Enzymes):
 		self.bottomRightOverhang = ""
 		frags.append((currentStart,band.sequence))
 		frags.sort()
-	print frags
-	# currentFrag = DNA(DNA[currentStart:nextStart],'PCR product')
-	# nextFrag = DNA(DNA[])
-	# currentFrag.topRightOverhang = Overhang(DNA[nextStart:nextStart+currentEnzyme.top_strand_offset)
-	# currentFrag.bottomRightOverhang = Overhang(DNA[nextStart:nextStart+currentEnzyme.bottom_strand_offset)
-
-	# self.bottomLeftOverhang = ""
-	# self.topRightOverhang = ""
-	# self.bottomRightOverhang = ""
-	# if currentStart + len(enzyme.recognition_site) >= nextStart:
-	# 	indices.pop(n+1)	
-
-
-
-	# site = sites[0]
-	# print sites
-	# print site
-	# left = site[0]
-	# print left
-	# first, find the overhang sizes
-	# TopOverhang = enzyme.top_strand_offset
-	# BottomOverhang = enzyme.top_strand_offset
-	# LeftTopStrand = DNA.sequence[:left+TopOverhang]
-	# LeftBottomStrand = DNA.sequence[:left+BottomOverhang]
-	# LTSList = [LeftTopStrand[i:i+50] for i in range(0, len(LeftTopStrand), 50)]
-	# LBSList = [LeftBottomStrand[i:i+50] for i in range(0, len(LeftBottomStrand), 50)]
-	# counter = 0
-	# TopGreater = len(LBSList) < len(LTSList)
-	# if TopGreater:
-	# 	while counter < len(LTSList):
-	# 		print "top :" + LTSList[counter]
-	# 		if counter < len(LBSList):
-	# 			print "bot :" + LBSList[counter]
-	# 		counter = counter + 1
-	# else:
-	# 	while counter < len(LBSList):
-	# 		print "top :" + LBSList[counter]
-	# 		if counter < len(LTSList):
-	# 			print "bot :" + LTSList[counter]
-	# 		counter = counter + 1			
+	print frags	
 	return sites
