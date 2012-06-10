@@ -93,7 +93,7 @@ class PrimerError(Exception):
         self.msg = msg
 
 #Note: PCR() product is not case preserving
-def PCR(templateDNA, primer1DNA, primer2DNA):
+def PCR(primer1DNA, primer2DNA, templateDNA):
 	template = templateDNA.sequence + '$'
 	primer_1 = primer1DNA.sequence + '$'
 	primer_2 = primer2DNA.sequence + '$'
