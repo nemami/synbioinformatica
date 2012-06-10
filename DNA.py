@@ -44,16 +44,18 @@ class DNA(object):
 		self.description = "SpecR pUC" #this is for humans to read
 		self.dam_methylated = True
 		self.overhang = "circular" #blunt, 3', 5', circular... should be a class in itself?
-		self.fivePrime_overhang = ""
-		self.threePrime_overhang = ""
+		self.topLeftOverhang = ""
+		self.bottomLeftOverhang = ""
+		self.topRightOverhang = ""
+		self.bottomRightOverhang = ""
 		#PCR product, miniprep, genomic DNA
 		self.provenance = ""
-		if DNAclass == "primer" or DNAclass == "genomic" or DNAclass == "PCR product":
+		if DNAclass == "primer" or DNAclass == "genomic" or DNAclass == "PCR product" or DNAclass == "digest":
 			self.topology = "linear"
-		elif DNAclass == "plasmid":
+		elif DNAclass == 'plasmid':
 			self.topology = "circular" #circular or linear, genomic should be considered linear
 		else:
-			raise Exception("Invalid molecule class. Acceptable classes are 'genomic', 'PCR product', 'plasmid' and 'primer'.")
+			raise Exception("Invalid molecule class. Acceptable classes are 'digest', genomic', 'PCR product', 'plasmid' and 'primer'.")
 	def reversecomp(self):
 		return revcomp(self.sequence) #reverses string
 		#code to handle the overhangs & other object attributes
@@ -124,26 +126,41 @@ class restrictionEnzyme(object):
 		not_completed = 1
 		for m in hasNum.finditer(recognitionsite):
 			(top, bottom) = m.group().split('/')
-		  	self.top_strand_offset = top
-		  	self.bottom_strand_offset = bottom
+		  	self.top_strand_offset = int(top)
+		  	self.bottom_strand_offset = int(bottom)
 		  	not_completed = 0
 		p = re.compile("/")
 		for m in p.finditer(recognitionsite):
 			if not_completed:
-				self.top_strand_offset = m.start()
+				self.top_strand_offset = int(m.start())
 				self.bottom_strand_offset = len(recognitionsite) - 1 - self.top_strand_offset	
 
 	def prettyPrint(self):
 		print "Name: ", self.name, "Recognition Site: ", self.recognition_site
 	def find_sites(self, DNA):
 		seq = DNA.sequence
-		rease_re = re.compile(self.compsite)
+		(fwd, rev) = self.compsite.split('|')
+		fwd_rease_re = re.compile(fwd)
+		rev_rease_re = re.compile(rev)
 		indices = []
-		for m in rease_re.finditer(seq.upper()):
+		seen = {}
+		if DNA.topology == "circular":
+			searchSequence = seq.upper() + seq[0:len(self.recognition_site)-2]
+		else:
+			searchSequence = seq.upper()
+		for m in fwd_rease_re.finditer(searchSequence):
 			span = m.span()
+			span = (span[0] % len(seq), span[1] % len(seq))
+			seen[span[0]] = 1
+			span = span + ('sense',)
 			indices.append(span)
-			# for k in s.split("/"):
-				# print k
+		for m in rev_rease_re.finditer(searchSequence):
+			span = m.span()
+			try:
+				seen[span[0]]
+			except:
+				span = span + ('antisense',)
+				indices.append(span)	
 		return indices
 
 # BamHI = restrictionEnzyme("BamHI", "", "", "", "", "", 65, 37, "g/gatcc","")
