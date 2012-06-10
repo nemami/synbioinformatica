@@ -64,7 +64,7 @@ class DNA(object):
 		#   TAGC..............CCTTAA
 		return 0
 	
-
+#taken from BioPython
 def BaseExpand(base):
     """BaseExpand(base) -> string.
 
@@ -136,10 +136,6 @@ class restrictionEnzyme(object):
 				print k
 ###PCR function###
 
-BamHI = restrictionEnzyme("BamHI", "", "", "", "", "", 65, 37, "g/gatcc")
-BamHI.find_sites("GGGGGGGATcCCCCCggatccCCCCCgaggagcccccccctcctcCCCC")
-
-BseRI = restrictionEnzyme("BseRI", "", "", "",  "", "", 65, 37, "gaggag(14/12)")
 #accepts two primers and list of input template DNAs
 def SOE(primer1, primer2, templates):
 	return 0
