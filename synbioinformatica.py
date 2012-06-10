@@ -2,10 +2,21 @@
 # Copyright Nima Emami, 2012
 
 import sys, random, re, math
-from DNA import DNA
+from DNA import DNA, restrictionEnzyme, Overhang
 from decimal import *
 
 # TODO: identification of primers on the edge of a circular sequence
+
+# Read in all enzymes:
+def EnzymeDictionary():
+	EnzymeDictionary = {}
+	fh = open('REases.tsv', 'rU')
+	for line in fh:
+		card = line.rstrip().split('\t')
+		card[0] = re.sub(r'\-','_',card[0])
+		EnzymeDictionary[card[0]] = restrictionEnzyme(card[0],card[1],card[2],card[3],card[4],
+													card[5],card[6],card[7],card[8],card[9])
+	return EnzymeDictionary
 
 # Suffix Tree implementation from: http://chipsndips.livejournal.com/2005/12/07/
 inf = 1000000
@@ -14,7 +25,7 @@ inf = 1000000
 class SuffixNode(dict):
 	def __init__(self):
 		self.suffixLink = None # Suffix link as defined by Ukkonen
-		
+
 class LCS:
 	def __init__(self,str1,str2):
 		str = str1 + str2
@@ -326,3 +337,36 @@ def getDhHash():
 	'ct' : -7.8,
 	'cc' : -8.0}
 	return dictionary
+
+def digest(DNA, Enzymes):
+	# TODO: multiple enzymes
+	for enzyme in Enzymes:
+		sites = enzyme.find_sites(DNA)
+		site = sites[0]
+		print sites
+		print site
+		left = site[0]
+		print left
+		# first, find the overhang sizes
+		TopOverhang = enzyme.top_strand_offset
+		BottomOverhang = enzyme.top_strand_offset
+		LeftTopStrand = DNA.sequence[:left+TopOverhang]
+
+		LeftBottomStrand = DNA.sequence[:left+BottomOverhang]
+		LTSList = [LeftTopStrand[i:i+50] for i in range(0, len(LeftTopStrand), 50)]
+		LBSList = [LeftBottomStrand[i:i+50] for i in range(0, len(LeftBottomStrand), 50)]
+		counter = 0
+		TopGreater = len(LBSList) < len(LTSList)
+		if TopGreater:
+			while counter < len(LTSList):
+				print "top :" + LTSList[counter]
+				if counter < len(LBSList):
+					print "bot :" + LBSList[counter]
+				counter = counter + 1
+		else:
+			while counter < len(LBSList):
+				print "top :" + LBSList[counter]
+				if counter < len(LTSList):
+					print "bot :" + LTSList[counter]
+				counter = counter + 1			
+	return sites
