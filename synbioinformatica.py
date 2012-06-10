@@ -338,35 +338,99 @@ def getDhHash():
 	'cc' : -8.0}
 	return dictionary
 
-def digest(DNA, Enzymes):
+def digest(InputDNA, Enzymes):
 	# TODO: multiple enzymes
+	indices = []
+	frags = []
+	sites = ""
+	if InputDNA.topology == "linear":
+		indices = [(0,0,''), (len(InputDNA.sequence),0,'')]
 	for enzyme in Enzymes:
-		sites = enzyme.find_sites(DNA)
-		site = sites[0]
-		print sites
-		print site
-		left = site[0]
-		print left
-		# first, find the overhang sizes
-		TopOverhang = enzyme.top_strand_offset
-		BottomOverhang = enzyme.top_strand_offset
-		LeftTopStrand = DNA.sequence[:left+TopOverhang]
-
-		LeftBottomStrand = DNA.sequence[:left+BottomOverhang]
-		LTSList = [LeftTopStrand[i:i+50] for i in range(0, len(LeftTopStrand), 50)]
-		LBSList = [LeftBottomStrand[i:i+50] for i in range(0, len(LeftBottomStrand), 50)]
-		counter = 0
-		TopGreater = len(LBSList) < len(LTSList)
-		if TopGreater:
-			while counter < len(LTSList):
-				print "top :" + LTSList[counter]
-				if counter < len(LBSList):
-					print "bot :" + LBSList[counter]
-				counter = counter + 1
+		sites = enzyme.find_sites(InputDNA)
+		for site in sites:
+			site = site + (enzyme, )
+			indices.append(site)
+		indices.sort()
+	for n in range(len(indices)-1):
+		currentTuple = indices[n]
+		nextTuple = indices[n+1]
+		currentStart = currentTuple[0]
+		nextStart = nextTuple[0]
+		if currentStart + len(enzyme.recognition_site) >= nextStart:
+			indices.pop(n+1)
+	if InputDNA.topology == "linear":
+		lastIt = len(indices) - 1
+	else:
+		lastIt = len(indices)
+	for n in range(lastIt):
+		currentTuple = indices[n]
+		direction = currentTuple[2]
+		currentEnzyme = currentTuple[3]
+		if n+1 > len(indices) - 1:
+			n = -1
+		nextTuple = indices[n+1]
+		currentStart = currentTuple[0]
+		currentEnd = currentTuple[1]
+		nextStart = nextTuple[0]
+		nextDirection = nextTuple[2]
+		nextEnzyme = nextTuple[3]
+		if direction == "sense":
+			CurrentTopOffset = currentEnzyme.top_strand_offset
+			CurrentBottomOffset = currentEnzyme.bottom_strand_offset
 		else:
-			while counter < len(LBSList):
-				print "top :" + LBSList[counter]
-				if counter < len(LTSList):
-					print "bot :" + LTSList[counter]
-				counter = counter + 1			
+			CurrentTopOffset = -1 * currentEnzyme.top_strand_offset
+			CurrentBottomOffset  = -1 * currentEnzyme.bottom_strand_offset
+		if nextDirection == "sense":
+			NextTopOffset = nextEnzyme.top_strand_offset
+			NextBottomOffset = nextEnzyme.bottom_strand_offset
+		else:
+			NextTopOffset = -1 * nextEnzyme.top_strand_offset
+			NextBottomOffset  = -1 * nextEnzyme.bottom_strand_offset
+		digested = DNA(InputDNA.sequence[currentEnd:nextStart],'PCR product')
+		digested.topLeftOverhang = ''
+		self.bottomLeftOverhang = ""
+		self.topRightOverhang = ""
+		self.bottomRightOverhang = ""
+		frags.append((currentStart,band.sequence))
+		frags.sort()
+	print frags
+	# currentFrag = DNA(DNA[currentStart:nextStart],'PCR product')
+	# nextFrag = DNA(DNA[])
+	# currentFrag.topRightOverhang = Overhang(DNA[nextStart:nextStart+currentEnzyme.top_strand_offset)
+	# currentFrag.bottomRightOverhang = Overhang(DNA[nextStart:nextStart+currentEnzyme.bottom_strand_offset)
+
+	# self.bottomLeftOverhang = ""
+	# self.topRightOverhang = ""
+	# self.bottomRightOverhang = ""
+	# if currentStart + len(enzyme.recognition_site) >= nextStart:
+	# 	indices.pop(n+1)	
+
+
+
+	# site = sites[0]
+	# print sites
+	# print site
+	# left = site[0]
+	# print left
+	# first, find the overhang sizes
+	# TopOverhang = enzyme.top_strand_offset
+	# BottomOverhang = enzyme.top_strand_offset
+	# LeftTopStrand = DNA.sequence[:left+TopOverhang]
+	# LeftBottomStrand = DNA.sequence[:left+BottomOverhang]
+	# LTSList = [LeftTopStrand[i:i+50] for i in range(0, len(LeftTopStrand), 50)]
+	# LBSList = [LeftBottomStrand[i:i+50] for i in range(0, len(LeftBottomStrand), 50)]
+	# counter = 0
+	# TopGreater = len(LBSList) < len(LTSList)
+	# if TopGreater:
+	# 	while counter < len(LTSList):
+	# 		print "top :" + LTSList[counter]
+	# 		if counter < len(LBSList):
+	# 			print "bot :" + LBSList[counter]
+	# 		counter = counter + 1
+	# else:
+	# 	while counter < len(LBSList):
+	# 		print "top :" + LBSList[counter]
+	# 		if counter < len(LTSList):
+	# 			print "bot :" + LTSList[counter]
+	# 		counter = counter + 1			
 	return sites
