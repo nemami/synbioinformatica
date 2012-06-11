@@ -106,7 +106,7 @@ class PrimerError(Exception):
         self.msg = msg
 
 #Note: PCR() product is not case preserving
-def PCR(templateDNA, primer1DNA, primer2DNA):
+def PCR(primer1DNA, primer2DNA, templateDNA):
 	template = templateDNA.sequence + '$'
 	primer_1 = primer1DNA.sequence + '$'
 	primer_2 = primer2DNA.sequence + '$'
@@ -220,8 +220,8 @@ def PCR(templateDNA, primer1DNA, primer2DNA):
 		print 'EXCEPTION: '+ error.msg
 		print 'primer: ' 
 		print error.primer
-		print 'template: '
-		print error.template
+		#print 'template: '
+		#print error.template
 		sys.exit()
 
 # Note: reverseComplement() is case preserving
