@@ -216,10 +216,10 @@ def FindDistEnz():
 	return FindDistinguishingEnzyme(list_of_dnas)
 
 #accepts list of DNA, outputs list of DNA
-def ligate(inputDNAs):
+def Ligate(inputDNAs):
 	return 0
 #accepts list of dnas and a strain, unsure what it outputs...
-def transform(DNAs, strain):
+def Transform(DNAs, strain):
 	return 0
 
 
