@@ -2,10 +2,23 @@
 # Copyright Nima Emami, 2012
 
 import sys, random, re, math
-from DNA import DNA
+from DNA import DNA, restrictionEnzyme, Overhang
 from decimal import *
 
-# TODO: identification of primers on the edge of a circular sequence
+# TODO: for PCR, identification of primers on the edge of a circular sequence
+# TODO: Digest function Error/Exception handling, e.g. proximity to terminal sequence on a linear fragment
+# TODO: Comment digest function
+
+# Read in all enzymes:
+def EnzymeDictionary():
+	EnzymeDictionary = {}
+	fh = open('REases.tsv', 'rU')
+	for line in fh:
+		card = line.rstrip().split('\t')
+		card[0] = re.sub(r'\-','_',card[0])
+		EnzymeDictionary[card[0]] = restrictionEnzyme(card[0],card[1],card[2],card[3],card[4],
+													card[5],card[6],card[7],card[8],card[9])
+	return EnzymeDictionary
 
 # Suffix Tree implementation from: http://chipsndips.livejournal.com/2005/12/07/
 inf = 1000000
@@ -14,7 +27,7 @@ inf = 1000000
 class SuffixNode(dict):
 	def __init__(self):
 		self.suffixLink = None # Suffix link as defined by Ukkonen
-		
+
 class LCS:
 	def __init__(self,str1,str2):
 		str = str1 + str2
@@ -326,3 +339,91 @@ def getDhHash():
 	'ct' : -7.8,
 	'cc' : -8.0}
 	return dictionary
+
+def digest(InputDNA, Enzymes):
+	# TODO: Error/Exception handling, e.g. proximity to terminal sequence on a linear fragment
+	indices = []
+	frags = []
+	sites = ""
+	if InputDNA.topology == "linear":
+		dummy = restrictionEnzyme("dummy", "", "", "", "", "", 0, 0, "(0/0)","")
+		indices = [(0,0,'',dummy), (len(InputDNA.sequence),0,'',dummy)]
+	for enzyme in Enzymes:
+		sites = enzyme.find_sites(InputDNA)
+		for site in sites:
+			site = site + (enzyme, )
+			indices.append(site)
+		indices.sort()
+	for n in range(len(indices)-1):
+		currentTuple = indices[n]
+		nextTuple = indices[n+1]
+		currentStart = currentTuple[0]
+		nextStart = nextTuple[0]
+		if currentStart + len(enzyme.recognition_site) >= nextStart:
+			indices.pop(n+1)
+	if InputDNA.topology == "linear":
+		lastIt = len(indices) - 1
+	else:
+		lastIt = len(indices)
+	for n in range(lastIt):
+		currentTuple = indices[n]
+		direction = currentTuple[2]
+		currentEnzyme = currentTuple[3]
+		if n+1 > len(indices) - 1:
+			n = -1
+		nextTuple = indices[n+1]
+		currentStart = currentTuple[0]
+		currentEnd = currentTuple[1]
+		nextStart = nextTuple[0]
+		nextDirection = nextTuple[2]
+		nextEnzyme = nextTuple[3]
+		addLeftLength = 0
+		addRightLength = 0
+		if direction == "sense":
+			CurrentTopOffset = currentEnzyme.top_strand_offset
+			CurrentBottomOffset = currentEnzyme.bottom_strand_offset
+			addLeftLength = min(CurrentTopOffset,CurrentBottomOffset)
+		else:
+			CurrentTopOffset = -1 * currentEnzyme.top_strand_offset
+			CurrentBottomOffset  = -1 * currentEnzyme.bottom_strand_offset
+			addLeftLength = max(CurrentTopOffset,CurrentBottomOffset)
+		if nextDirection == "sense":
+			NextTopOffset = nextEnzyme.top_strand_offset
+			NextBottomOffset = nextEnzyme.bottom_strand_offset
+			addRightLength = min(NextTopOffset,NextBottomOffset)
+		else:
+			NextTopOffset = -1 * nextEnzyme.top_strand_offset
+			NextBottomOffset  = -1 * nextEnzyme.bottom_strand_offset
+			addRightLength = max(NextTopOffset,NextBottomOffset)
+		print currentEnzyme.compsite
+		print CurrentTopOffset
+		print CurrentBottomOffset
+		print NextTopOffset
+		print NextBottomOffset
+		digested = DNA(InputDNA.sequence[currentEnd+addLeftLength:nextStart+addRightLength],'digest')
+		if abs(CurrentTopOffset) < abs(CurrentBottomOffset):
+			difference = abs(CurrentBottomOffset) - abs(CurrentTopOffset)
+			digested.topLeftOverhang = Overhang('')
+			digested.bottomLeftOverhang = Overhang(reverseComplement(InputDNA.sequence[currentEnd+addLeftLength-difference:currentEnd+addLeftLength]))
+		else:
+			difference = abs(CurrentTopOffset) - abs(CurrentBottomOffset) 
+			digested.topLeftOverhang = Overhang(InputDNA.sequence[currentEnd+addLeftLength-difference:currentEnd+addLeftLength])
+			digested.bottomLeftOverhang = Overhang('')
+		if abs(NextTopOffset) < abs(NextBottomOffset):
+			difference = abs(NextBottomOffset) - abs(NextTopOffset) 
+			digested.topRightOverhang = Overhang('')
+			digested.bottomRightOverhang = Overhang(reverseComplement(InputDNA.sequence[currentEnd+addLeftLength:currentEnd+addLeftLength+difference]))
+		else:
+			difference = abs(NextTopOffset) - abs(NextBottomOffset)
+			digested.topRightOverhang = Overhang(InputDNA.sequence[currentEnd+addLeftLength:currentEnd+addLeftLength+difference])
+			digested.bottomRightOverhang = Overhang('')
+		frags.append((currentStart,digested))
+		frags.sort()
+	for frag in frags:
+		print frag
+		print frag[1].sequence
+		print frag[1].topRightOverhang.sequence
+		print frag[1].bottomRightOverhang.sequence
+		print frag[1].topLeftOverhang.sequence
+		print frag[1].bottomLeftOverhang.sequence
+	return sites
