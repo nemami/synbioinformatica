@@ -106,7 +106,8 @@ class PrimerError(Exception):
         self.msg = msg
 
 #Note: PCR() product is not case preserving
-def PCR(primer1DNA, primer2DNA, templateDNA):
+##TODO: 1. soft warn user if there's a low/high GC region (< 30% or >70%)
+def PCRSimulate(primer1DNA, primer2DNA, templateDNA):
 	template = templateDNA.sequence + '$'
 	primer_1 = primer1DNA.sequence + '$'
 	primer_2 = primer2DNA.sequence + '$'
@@ -427,3 +428,26 @@ def digest(InputDNA, Enzymes):
 		print frag[1].topLeftOverhang.sequence
 		print frag[1].bottomLeftOverhang.sequence
 	return sites
+
+#DNA cleanup
+def ZymoClean(list_of_dnas):
+	#should return everything > 300bp
+	return 0
+def GelPurify(list_of_dnas, size):
+	#size is large or small
+	#returns THE singular DNA that was purified
+	return 0
+def PCA(list_ofprimers):
+	#simulates PCA, give the user an option to look at the pretty print aligned oligos
+	#return a DNA object, but this has to be PCR'ed to amplify
+	return 0
+
+
+#This is the strain class, it's primarily used to check if a strain is already resistant to
+#  transformed antibiotic (by genomic or plasmid modifications), and if the strain can replicate
+# the incoming plasmid
+class Strain(object):
+	def __init(name,replicons, modifications
+		return 0
+
+
