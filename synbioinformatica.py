@@ -207,8 +207,8 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
 		print 'EXCEPTION: '+ error.msg
 		print 'primer: ' 
 		print error.primer
-		print 'template: '
-		print error.template
+		#print 'template: '
+		#print error.template
 		sys.exit()
 
 # Note: reverseComplement() is case preserving
