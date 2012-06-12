@@ -347,6 +347,7 @@ def getDhHash():
 
 def digest(InputDNA, Enzymes):
 	# TODO: Error/Exception handling, e.g. proximity to terminal sequence on a linear fragment
+	print 'Input DNA ('+InputDNA.topology+'): '+InputDNA.sequence
 	indices = []			# for restriction sites
 	frags = []				# producted DNA fragments
 	sites = ""
