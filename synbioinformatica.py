@@ -1,6 +1,5 @@
 #!/usr/bin/python -tt
 # Copyright Nima Emami, 2012
-#testtesttest
 import sys, random, re, math
 from DNA import DNA, restrictionEnzyme, Overhang
 from decimal import *
@@ -479,3 +478,8 @@ def digest(InputDNA, Enzymes):
 		print 'Fragment.TLO: '+frag[1].topLeftOverhang.sequence
 		print 'Fragment.BLO: '+frag[1].bottomLeftOverhang.sequence
 	return sites
+
+#Input: two restriction enzymes
+# Output: temperature and buffer at which to run the digestion
+def DoubleDigest(endo1, endo2):
+	return 0
