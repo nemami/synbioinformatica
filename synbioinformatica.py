@@ -229,6 +229,11 @@ def reverseComplement(sequence):
 	basecomplement = {'G':'C', 'A':'T', 'T':'A', 'C':'G', 'R':'Y', 'Y':'R', 'M':'K', 'K':'M', 'S':'S', 'W':'W', 'H':'D', 'B':'V', 'V':'B', 'D':'H', 'N':'N','g':'c', 'a':'t', 't':'a', 'c':'g', 'r':'y', 'y':'r', 'm':'k', 'k':'m', 's':'s', 'w':'w', 'h':'d', 'b':'v', 'v':'b', 'd':'h', 'n':'n'}
   	return "".join([basecomplement.get(nucleotide.lower(), '') for nucleotide in sequence[::-1]])
 
+# Note: reverseComplement() is case preserving
+def Complement(sequence):
+	basecomplement = {'G':'C', 'A':'T', 'T':'A', 'C':'G', 'R':'Y', 'Y':'R', 'M':'K', 'K':'M', 'S':'S', 'W':'W', 'H':'D', 'B':'V', 'V':'B', 'D':'H', 'N':'N','g':'c', 'a':'t', 't':'a', 'c':'g', 'r':'y', 'y':'r', 'm':'k', 'k':'m', 's':'s', 'w':'w', 'h':'d', 'b':'v', 'v':'b', 'd':'h', 'n':'n'}
+  	return "".join([basecomplement.get(nucleotide.lower(), '') for nucleotide in sequence[0:]])
+
 def primerTm(sequence):
 	milliMolarSalt = 50
 	milliMolarMagnesium = 1.5
@@ -342,88 +347,125 @@ def getDhHash():
 
 def digest(InputDNA, Enzymes):
 	# TODO: Error/Exception handling, e.g. proximity to terminal sequence on a linear fragment
-	indices = []
-	frags = []
+	indices = []			# for restriction sites
+	frags = []				# producted DNA fragments
 	sites = ""
-	if InputDNA.topology == "linear":
+	totalLength = len(InputDNA.sequence)
+	if InputDNA.topology == "linear":	
+		# Initialize indices array with start and end indices of the linear fragment
+			# Add dummy REase for consistency
 		dummy = restrictionEnzyme("dummy", "", "", "", "", "", 0, 0, "(0/0)","")
 		indices = [(0,0,'',dummy), (len(InputDNA.sequence),0,'',dummy)]
+	# Identify restriction sites, fill in indices array
 	for enzyme in Enzymes:
 		sites = enzyme.find_sites(InputDNA)
 		for site in sites:
 			site = site + (enzyme, )
 			indices.append(site)
 		indices.sort()
+	# If you have overlapping restriction sites, choose the first one and discard the
+		# second (TODO: there may be a better, non-greedy way to do this... not sure)
 	for n in range(len(indices)-1):
-		currentTuple = indices[n]
-		nextTuple = indices[n+1]
-		currentStart = currentTuple[0]
-		nextStart = nextTuple[0]
+		(currentTuple, nextTuple) = (indices[n], indices[n+1])
+		(currentStart, nextStart) = (currentTuple[0], nextTuple[0])
 		if currentStart + len(enzyme.recognition_site) >= nextStart:
 			indices.pop(n+1)
+	# If it's linear, only act on the first n - 1 fragments until you hit the blunt ending
+		# If it's circular, then the 'last' segment is adjacent to the 'first' one, so you
+		# need to consider the adjacency relationships among the full n fragments
 	if InputDNA.topology == "linear":
 		lastIt = len(indices) - 1
 	else:
 		lastIt = len(indices)
+	# Consider enzyme for the current restriction site as well as the next restriction
+		# site, so that you can generate overhangs for both sides of the current fragment
 	for n in range(lastIt):
 		currentTuple = indices[n]
-		direction = currentTuple[2]
-		currentEnzyme = currentTuple[3]
 		if n+1 > len(indices) - 1:
 			n = -1
 		nextTuple = indices[n+1]
-		currentStart = currentTuple[0]
-		currentEnd = currentTuple[1]
-		nextStart = nextTuple[0]
-		nextDirection = nextTuple[2]
-		nextEnzyme = nextTuple[3]
-		addLeftLength = 0
-		addRightLength = 0
+		(currentStart, currentEnd, direction, currentEnzyme) = currentTuple
+		(nextStart, nextEnd, nextDirection, nextEnzyme) = nextTuple
+		# If it's on the sense strand, then overhang is positive
+			# If it's on the antisense strand, then you have to go back towards the 5'
+			# to generate the overhang (so multiply by -1)
+		# CT(B)O = current top (bottom) overhang, AL(R)L = add left (right) length, NT(B)O = next top (bottom) overhang
+		(ALL, ARL) = (0,0)
 		if direction == "sense":
-			CurrentTopOffset = currentEnzyme.top_strand_offset
-			CurrentBottomOffset = currentEnzyme.bottom_strand_offset
-			addLeftLength = min(CurrentTopOffset,CurrentBottomOffset)
+			CTO = currentEnzyme.top_strand_offset
+			CBO = currentEnzyme.bottom_strand_offset
+			ALL = max(CTO,CBO)
 		else:
-			CurrentTopOffset = -1 * currentEnzyme.top_strand_offset
-			CurrentBottomOffset  = -1 * currentEnzyme.bottom_strand_offset
-			addLeftLength = max(CurrentTopOffset,CurrentBottomOffset)
+			CTO = len(currentEnzyme.alpha_only_site) -1 * currentEnzyme.top_strand_offset
+			CBO  = len(currentEnzyme.alpha_only_site) -1 * currentEnzyme.bottom_strand_offset
+			ALL = max(CTO,CBO)-1
 		if nextDirection == "sense":
-			NextTopOffset = nextEnzyme.top_strand_offset
-			NextBottomOffset = nextEnzyme.bottom_strand_offset
-			addRightLength = min(NextTopOffset,NextBottomOffset)
+			NTO = nextEnzyme.top_strand_offset
+			NBO = nextEnzyme.bottom_strand_offset
+			ARL = min(NTO,NBO)
 		else:
-			NextTopOffset = -1 * nextEnzyme.top_strand_offset
-			NextBottomOffset  = -1 * nextEnzyme.bottom_strand_offset
-			addRightLength = max(NextTopOffset,NextBottomOffset)
-		print currentEnzyme.compsite
-		print CurrentTopOffset
-		print CurrentBottomOffset
-		print NextTopOffset
-		print NextBottomOffset
-		digested = DNA(InputDNA.sequence[currentEnd+addLeftLength:nextStart+addRightLength],'digest')
-		if abs(CurrentTopOffset) < abs(CurrentBottomOffset):
-			difference = abs(CurrentBottomOffset) - abs(CurrentTopOffset)
-			digested.topLeftOverhang = Overhang('')
-			digested.bottomLeftOverhang = Overhang(reverseComplement(InputDNA.sequence[currentEnd+addLeftLength-difference:currentEnd+addLeftLength]))
+			NTO = len(nextEnzyme.alpha_only_site) -1 * nextEnzyme.top_strand_offset
+			NBO  = len(nextEnzyme.alpha_only_site) -1 * nextEnzyme.bottom_strand_offset
+			ARL = min(NTO,NBO)-1
+		# Update start value currentStart and apply ( mod length ) to deal with edge cases
+			# Also, update end value digEnd for fragment indices
+		currentStart = currentStart+ALL
+		currentStart = currentStart % totalLength
+		digEnd = nextStart + ARL
+		digested = DNA(InputDNA.sequence[currentStart:digEnd],'digest')
+		# Adjust top and bottom overhang values based on the orientation of the restriction site
+		if direction == "sense":
+			TO = CTO
+			BO = CBO
 		else:
-			difference = abs(CurrentTopOffset) - abs(CurrentBottomOffset) 
-			digested.topLeftOverhang = Overhang(InputDNA.sequence[currentEnd+addLeftLength-difference:currentEnd+addLeftLength])
+			TO = CBO
+			BO = CTO
+		difference = abs(abs(BO) - abs(TO))
+		if abs(TO) < abs(BO) and direction == "sense" or abs(TO) > abs(BO) and direction == "antisense":
+			# Edge case statement
+			if currentStart - len(currentEnzyme.alpha_only_site) < 0:
+				digested.topLeftOverhang = Overhang(InputDNA.sequence[currentStart-difference:]+InputDNA.sequence[:currentStart])
+			else:
+				digested.topLeftOverhang = Overhang(InputDNA.sequence[currentStart-difference:currentStart])
 			digested.bottomLeftOverhang = Overhang('')
-		if abs(NextTopOffset) < abs(NextBottomOffset):
-			difference = abs(NextBottomOffset) - abs(NextTopOffset) 
-			digested.topRightOverhang = Overhang('')
-			digested.bottomRightOverhang = Overhang(reverseComplement(InputDNA.sequence[currentEnd+addLeftLength:currentEnd+addLeftLength+difference]))
 		else:
-			difference = abs(NextTopOffset) - abs(NextBottomOffset)
-			digested.topRightOverhang = Overhang(InputDNA.sequence[currentEnd+addLeftLength:currentEnd+addLeftLength+difference])
+			digested.topLeftOverhang = Overhang('') 
+			# Edge case statement
+			if currentStart - len(currentEnzyme.alpha_only_site) < 0:
+				digested.bottomLeftOverhang = Overhang(Complement(InputDNA.sequence[currentStart-difference:]+InputDNA.sequence[:currentStart]))
+			else:
+				digested.bottomLeftOverhang = Overhang(Complement(InputDNA.sequence[currentStart-difference:currentStart]))
+		# Adjust top and bottom overhang values based on the orientation of the restriction site
+		if direction == "sense":
+			TO = NTO
+			BO = NBO
+		else:
+			TO = NBO
+			BO = NTO
+		difference = abs(abs(BO) - abs(TO))
+		# Apply ( mod length ) operator to end index value digDiff to deal with edge cases
+		digDiff = digEnd + difference
+		digDiff = digDiff % totalLength
+		if abs(TO) < abs(BO) and direction == "sense" or abs(TO) > abs(BO) and direction == "antisense":
+			digested.topRightOverhang = Overhang('')
+			# Edge case statement
+			if digDiff - len(nextEnzyme.alpha_only_site) < 0:
+				digested.bottomRightOverhang = Overhang(Complement(InputDNA.sequence[digEnd:]+InputDNA.sequence[:digDiff]))
+			else:
+				digested.bottomRightOverhang = Overhang(Complement(InputDNA.sequence[digEnd:digDiff])) 
+		else:
+			# Edge case statement
+			if digDiff - len(nextEnzyme.alpha_only_site) < 0:
+				digested.topRightOverhang = Overhang(InputDNA.sequence[digEnd:]+InputDNA.sequence[:digDiff])
+			else:
+				digested.topRightOverhang = Overhang(InputDNA.sequence[digEnd:digDiff])
 			digested.bottomRightOverhang = Overhang('')
 		frags.append((currentStart,digested))
 		frags.sort()
 	for frag in frags:
-		print frag
-		print frag[1].sequence
-		print frag[1].topRightOverhang.sequence
-		print frag[1].bottomRightOverhang.sequence
-		print frag[1].topLeftOverhang.sequence
-		print frag[1].bottomLeftOverhang.sequence
+		print 'Fragment: '+frag[1].sequence
+		print 'Fragment.TRO: '+frag[1].topRightOverhang.sequence
+		print 'Fragment.BRO: '+frag[1].bottomRightOverhang.sequence
+		print 'Fragment.TLO: '+frag[1].topLeftOverhang.sequence
+		print 'Fragment.BLO: '+frag[1].bottomLeftOverhang.sequence
 	return sites
