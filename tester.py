@@ -7,7 +7,7 @@
 # returns tuple: (PCR product, start index, end index)
 
 import synbioinformatica, sys
-from DNA import DNA, restrictionEnzyme
+from synbioinformatica import DNA, restrictionEnzyme
 
 def main(template, primer_1, primer_2):
 	print PCR(template, primer_1, primer_2)
