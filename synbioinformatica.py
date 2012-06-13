@@ -1,6 +1,5 @@
 #!/usr/bin/python -tt
 # Copyright Nima Emami, 2012
-
 import sys, random, re, math
 from decimal import *
 
@@ -716,4 +715,9 @@ def HasR6K(seq):
 	return 0
 
 def HasP15A(seq):
+	return 0
+
+#Input: two restriction enzymes
+# Output: temperature and buffer at which to run the digestion
+def DoubleDigest(endo1, endo2):
 	return 0
