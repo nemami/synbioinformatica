@@ -119,6 +119,7 @@ class restrictionEnzyme(object):
 		self.endDistance = distance
 		#function to convert recog site into regex
 		alpha_only_site = re.sub('[^a-zA-Z]+', '', recognitionsite)
+		self.alpha_only_site = alpha_only_site
 		# print ToRegex(alpha_only_site, name)
 		self.compsite = ToRegex(alpha_only_site, name)
 		#convert information about where the restriction happens to an offset on the top and bottom strand
