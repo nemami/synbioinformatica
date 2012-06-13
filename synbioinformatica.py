@@ -1,5 +1,6 @@
 #!/usr/bin/python -tt
 # Copyright Nima Emami, 2012
+
 import sys, random, re, math
 from decimal import *
 
@@ -360,7 +361,7 @@ def getDhHash():
 	'cc' : -8.0}
 	return dictionary
 
-def digest(InputDNA, Enzymes):
+def Digest(InputDNA, Enzymes):
 	# TODO: Error/Exception handling, e.g. proximity to terminal sequence on a linear fragment
 	print 'Input DNA ('+InputDNA.topology+'): '+InputDNA.sequence
 	indices = []			# for restriction sites
@@ -644,14 +645,6 @@ class restrictionEnzyme(object):
 #accepts two primers and list of input template DNAs
 def SOE(primer1, primer2, templates):
 	return 0
-#accepts DNA, list of enzyme names, outputs list of DNA fragments, or uncut DNA
-#may change enzymes into objects to get rid of need to always type ""
-def Digest(inputDNA, enzymes):
-    #there needs to be an enzyme class... we'll want to invoke that when dealing with heat inactivations
-	#NEBEnzymes.tsv     name  buffers 1, 2, 3, 4, ecori, heat inact, incubation temp, recognition site, cleavage from end
-	#find where the enzyme recognition site is with regex re.compile(compsite)
-	#generate the appropriate n+1 or n linear molecules resulting from the digest
-	return 0
 
 def Distinguish2DNABands(a, b):
         #case of 2
@@ -715,9 +708,4 @@ def HasR6K(seq):
 	return 0
 
 def HasP15A(seq):
-	return 0
-
-#Input: two restriction enzymes
-# Output: temperature and buffer at which to run the digestion
-def DoubleDigest(endo1, endo2):
 	return 0
