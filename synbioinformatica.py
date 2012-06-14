@@ -528,6 +528,10 @@ class DNA(object):
 		self.bottomRightOverhang = ""
 		#PCR product, miniprep, genomic DNA
 		self.provenance = ""
+		#Here is the linked list references for building up action-chains
+		# an action chain would be something like do PCR on day 1, do transformation on day 2, etc
+		self.head = None
+		self.tail = None
 		if DNAclass == "primer" or DNAclass == "genomic" or DNAclass == "PCR product" or DNAclass == "digest":
 			self.topology = "linear"
 		elif DNAclass == 'plasmid':
