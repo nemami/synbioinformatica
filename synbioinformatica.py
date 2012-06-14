@@ -6,8 +6,6 @@ from decimal import *
 
 # TODO: for PCR, identification of primers on the edge of a circular sequence
 # TODO: Digest function Error/Exception handling, e.g. proximity to terminal sequence on a linear fragment
-# TODO: Comment digest function
-
 
 dna_alphabet = {'A':'A', 'C':'C', 'G':'G', 'T':'T',
                 'R':'AG', 'Y':'CT', 'W':'AT', 'S':'CG', 'M':'AC', 'K':'GT',
@@ -17,7 +15,6 @@ dna_alphabet = {'A':'A', 'C':'C', 'G':'G', 'T':'T',
                 'r':'ag', 'y':'ct', 'w':'at', 's':'cg', 'm':'ac', 'k':'gt',
                 'h':'act', 'b':'cgt', 'v':'acg', 'd':'agt',
                 'n':'acgt'}
-
 
 complement_alphabet = {'A':'T', 'T':'A', 'C':'G', 'G':'C','R':'Y', 'Y':'R',
                        'W':'W', 'S':'S', 'M':'K', 'K':'M', 'H':'D', 'D':'H',
@@ -362,31 +359,39 @@ def getDhHash():
 	return dictionary
 
 def Digest(InputDNA, Enzymes):
-	# TODO: Error/Exception handling, e.g. proximity to terminal sequence on a linear fragment
+	# TODO: Error/Exception handling
+		# fix test case: DNA('TGACTGCCGTTCATGGTGAGATGAGTGAAGGCGAGCTGGTGGATGCATTCCGCCATGTGAGTGATGCGTTTGAGCAAACCAGCGAAACCATCGGCGTGCGCGCCAATAACGCGATCAACGACATGGTGCGTCAACGTCTGCTGAACCGCTTTACCAGCGAGCAGGCGGAAGGGAACGCAATTTACCGTCTGACGCCGCTCGGCATCGGCATTACTGACTACNNNATCCGTCAGCGCGAGTTTTCTACGCTGCGTCTTTCTATGCAGTTGTCGATTGTGGCGGGTGAGCTCAAACGCGCAGCAGATGCCGCCGAAGAGGGCGGTGATGAATTTCACTGGCACCGTAATGTCTATGCGCCACTGAAATATTCGGTAGCAGAAATTTTCGACAGTATCGACCTGACGCAACGTCTGATGGACGAACAGCAGCAGCAGGTGAAGGACGATATCGCCCAGTTGCTGAACAAAGACTGGCGGGCGGCGATTTCCAGCTGGATCCTGAATTGTTGCTTTCGGAAACTTCCGGAACGCTGCGTGAATTGCAGGATACGCTGGAAGCGGCAGGCGACAAATTGCAGGCTAATCTGTTGCGCATTCAGGATGCGACGATGACCCATGACGATCTGCATTTCGTCGATCGTCTGGTGTTCGATCTGCAGAGCAAACTCGATCGTATTATCAGTTGGGGCCAGCAATCCATCGACTTGTGGATTGGCTACGACCGCCACGTACACAAATTTATTCGTACCGCGATCGATATGGATAAAAACCGCGTCTTTGCTCAGCGGTTACGTCAGTCGGTACAAACCTATTTTGATGAACGGCGGGCGCTAACTTATGCCAATGCCGATCGTCTGCTGGATATGCGTGACGAAGAGATGGCACTGCGCGATGAAGAAGTGACTGGGGAACTTCCTGAGGATCTGGAATACGAAGAGTTTAACGAGATCCGCGAACAGCTGGCGGCGATCATCGAAGAACAACTTGCCGTGTACAAAACCAGACAAGTGCCGCTGGATCTTGGTCTGGTGGTACGCGAATATCTGTCACAGTATCCGCGTGCACGTCACTTTGACGTTGCGCGTATTGTTATTGATACCTGACGCAACGTCTGCGAATTCCTGCAGTA','PCR product')
+		# screwing up indices because of cutting backwards...
 	print 'Input DNA ('+InputDNA.topology+'): '+InputDNA.sequence
-	indices = []			# for restriction sites
-	frags = []				# producted DNA fragments
-	sites = ""
-	totalLength = len(InputDNA.sequence)
+	(indices, frags, sites, totalLength) = ([], [], "", len(InputDNA.sequence)) # Initialization
 	if InputDNA.topology == "linear":	
 		# Initialize indices array with start and end indices of the linear fragment
 			# Add dummy REase for consistency
 		dummy = restrictionEnzyme("dummy", "", "", "", "", "", 0, 0, "(0/0)","")
-		indices = [(0,0,'',dummy), (len(InputDNA.sequence),0,'',dummy)]
+		indices = [(0,0,'',dummy), (totalLength,0,'',dummy)]
 	# Identify restriction sites, fill in indices array
 	for enzyme in Enzymes:
 		sites = enzyme.find_sites(InputDNA)
 		for site in sites:
-			site = site + (enzyme, )
-			indices.append(site)
+			# TODO: Should this be site[0] for start of site, or site[1] for end
+				# also, palindromic vs. nonpalindromic case
+			if int(site[0]) - int(enzyme.endDistance) < 0 or int(site[1]) + int(enzyme.endDistance) > totalLength:
+				pass
+			else: 
+				site = site + (enzyme, )
+				indices.append(site)
 		indices.sort()
 	# If you have overlapping restriction sites, choose the first one and discard the
 		# second (TODO: there may be a better, non-greedy way to do this... not sure)
 	for n in range(len(indices)-1):
 		(currentTuple, nextTuple) = (indices[n], indices[n+1])
 		(currentStart, nextStart) = (currentTuple[0], nextTuple[0])
-		if currentStart + len(enzyme.recognition_site) >= nextStart:
-			indices.pop(n+1)
+		if currentStart + len(enzyme.alpha_only_site) >= nextStart:
+			currentIndex = indices[n+1]
+			if currentIndex[0] == len(InputDNA.sequence):
+				pass
+			else:
+				indices.pop(n+1)
 	# If it's linear, only act on the first n - 1 fragments until you hit the blunt ending
 		# If it's circular, then the 'last' segment is adjacent to the 'first' one, so you
 		# need to consider the adjacency relationships among the full n fragments
@@ -409,25 +414,17 @@ def Digest(InputDNA, Enzymes):
 		# CT(B)O = current top (bottom) overhang, AL(R)L = add left (right) length, NT(B)O = next top (bottom) overhang
 		(ALL, ARL) = (0,0)
 		if direction == "sense":
-			CTO = currentEnzyme.top_strand_offset
-			CBO = currentEnzyme.bottom_strand_offset
+			(CTO, CBO) = (currentEnzyme.top_strand_offset, currentEnzyme.bottom_strand_offset)
 			ALL = max(CTO,CBO)
 		else:
-			CTO = len(currentEnzyme.alpha_only_site) -1 * currentEnzyme.top_strand_offset
-			CBO  = len(currentEnzyme.alpha_only_site) -1 * currentEnzyme.bottom_strand_offset
-			ALL = max(CTO,CBO)-1
+			(CTO, CBO) = (-1 * currentEnzyme.top_strand_offset, -1 * currentEnzyme.bottom_strand_offset)
+			ALL = max(CTO,CBO)
 		if nextDirection == "sense":
-			NTO = nextEnzyme.top_strand_offset
-			NBO = nextEnzyme.bottom_strand_offset
+			(NTO, NBO) = (nextEnzyme.top_strand_offset, nextEnzyme.bottom_strand_offset)
 			ARL = min(NTO,NBO)
 		else:
-			NTO = len(nextEnzyme.alpha_only_site) -1 * nextEnzyme.top_strand_offset
-			NBO  = len(nextEnzyme.alpha_only_site) -1 * nextEnzyme.bottom_strand_offset
+			(NTO, NBO) = (-1 * nextEnzyme.top_strand_offset + 1, -1 * nextEnzyme.bottom_strand_offset + 1)
 			ARL = min(NTO,NBO)-1
-			# TODO: off by errors
-			# from test case plasmid = DNA('TTCATGGTGAGATGAGTGAAGGCGAGCTGGTGGATGCATTCCGCCATGTGAGTGATGCGTTTGAGCAAACCAGCGAAACCATCGGCGTGCGCGCCAATAACGCGATCAACGACATGGTGCGTCAACGTCTGCTGAACCGCTTTACCAGCGAGCAGGCGGAAGGGAACGCAATTTACCGTCTGACGCCGCTCGGCATCGGCATTACTGACTACNNNATCCGTCAGCGCGAGTTTTCTACGCTGCGTCTTTCTATGCAGTTGTCGATTGTGGCGGGTGAGCTCAAACGCGCAGCAGATGCCGCCGAAGAGGGCGGTGATGAATTTCACTGGCACCGTAATGTCTATGCGCCACTGAAATATTCGGTAGCAGAAATTTTCGACAGTATCGACCTGACGCAACGTCTGATGGACGAACAGCAGCAGCAGGTGAAGGACGATATCGCCCAGTTGCTGAACAAAGACTGGCGGGCGGCGATTTCCAGCTGGATCCTGAATTGTTGCTTTCGGAAACTTCCGGAACGCTGCGTGAATTGCAGGATACGCTGGAAGCGGCAGGCGACAAATTGCAGGCTAATCTGTTGCGCATTCAGGATGCGACGATGACCCATGACGATCTGCATTTCGTCGATCGTCTGGTGTTCGATCTGCAGAGCAAACTCGATCGTATTATCAGTTGGGGCCAGCAATCCATCGACTTGTGGATTGGCTACGACCGCCACGTACACAAATTTATTCGTACCGCGATCGATATGGATAAAAACCGCGTCTTTGCTCAGCGGTTACGTCAGTCGGTACAAACCTATTTTGATGAACGGCGGGCGCTAACTTATGCCAATGCCGATCGTCTGCTGGATATGCGTGACGAAGAGATGGCACTGCGCGATGAAGAAGTGACTGGGGAACTTCCTGAGGATCTGGAATACGAAGAGTTTAACGAGATCCGCGAACAGCTGGCGGCGATCATCGAAGAACAACTTGCCGTGTACAAAACCAGACAAGTGCCGCTGGATCTTGGTCTGGTGGTACGCGAATATCTGTCACAGTATCCGCGTGCACGTCACTTTGACGTTGCGCGTATTGTTATTGATACCTGACGCAACGTCTGCGAA','plasmid')
-				# left side of frag with currentEnzyme == 'sense' strand BceAI
-				# right side of frag with nextEnzyme == 'sense' strand BceAI
 		# Update start value currentStart and apply ( mod length ) to deal with edge cases
 			# Also, update end value digEnd for fragment indices
 		currentStart = currentStart+ALL
@@ -436,18 +433,15 @@ def Digest(InputDNA, Enzymes):
 		digested = DNA(InputDNA.sequence[currentStart:digEnd],'digest')
 		# Adjust top and bottom overhang values based on the orientation of the restriction site
 		if direction == "sense":
-			TO = CTO
-			BO = CBO
+			(TO, BO) = (CTO, CBO)
 		else:
-			TO = CBO
-			BO = CTO
+			(TO, BO) = (CBO, CTO)
 		difference = abs(abs(BO) - abs(TO))
+		if currentEnzyme.reach and direction == "sense":
+			currentStart = currentStart + len(currentEnzyme.alpha_only_site)
+		if nextEnzyme.reach and nextDirection == "sense":
+			digEnd = digEnd + len(nextEnzyme.alpha_only_site)
 		if abs(TO) < abs(BO) and direction == "sense" or abs(TO) > abs(BO) and direction == "antisense":
-			# Edge case statement
-			# print currentEnzyme.compsite
-			# print nextEnzyme.compsite
-			# print currentStart
-			# print difference
 			if currentStart - len(currentEnzyme.alpha_only_site) < 0:
 				digested.topLeftOverhang = Overhang(InputDNA.sequence[currentStart-difference:]+InputDNA.sequence[:currentStart])
 			else:
@@ -460,13 +454,14 @@ def Digest(InputDNA, Enzymes):
 				digested.bottomLeftOverhang = Overhang(Complement(InputDNA.sequence[currentStart-difference:]+InputDNA.sequence[:currentStart]))
 			else:
 				digested.bottomLeftOverhang = Overhang(Complement(InputDNA.sequence[currentStart-difference:currentStart]))
+		print 'Fragment: '+digested.sequence
+		print 'Fragment.TLO: '+ digested.topLeftOverhang.sequence + " ("+str(currentStart-difference)+","+str(currentStart)+")"
+		print 'Fragment.BLO: '+ digested.bottomLeftOverhang.sequence + " ("+str(currentStart-difference)+","+str(currentStart)+")"
 		# Adjust top and bottom overhang values based on the orientation of the restriction site
 		if direction == "sense":
-			TO = NTO
-			BO = NBO
+			(TO, BO) = (NTO, NBO)
 		else:
-			TO = NBO
-			BO = NTO
+			(TO, BO) = (NBO, NTO)
 		difference = abs(abs(BO) - abs(TO))
 		# Apply ( mod length ) operator to end index value digDiff to deal with edge cases
 		digDiff = digEnd + difference
@@ -485,14 +480,10 @@ def Digest(InputDNA, Enzymes):
 			else:
 				digested.topRightOverhang = Overhang(InputDNA.sequence[digEnd:digDiff])
 			digested.bottomRightOverhang = Overhang('')
+		print 'Fragment.TRO: '+ digested.topRightOverhang.sequence + " ("+str(digEnd)+","+str(digDiff)+")"
+		print 'Fragment.BRO: '+ digested.bottomRightOverhang.sequence + " ("+str(digEnd)+","+str(digDiff)+")"
 		frags.append((currentStart,digested))
 		frags.sort()
-	for frag in frags:
-		print 'Fragment: '+frag[1].sequence
-		print 'Fragment.TRO: '+frag[1].topRightOverhang.sequence
-		print 'Fragment.BRO: '+frag[1].bottomRightOverhang.sequence
-		print 'Fragment.TLO: '+frag[1].topLeftOverhang.sequence
-		print 'Fragment.BLO: '+frag[1].bottomLeftOverhang.sequence
 	return sites
 
 def revcomp(string):
@@ -603,20 +594,22 @@ class restrictionEnzyme(object):
 		self.alpha_only_site = alpha_only_site
 		# print ToRegex(alpha_only_site, name)
 		self.compsite = ToRegex(alpha_only_site, name)
+		self.reach = False
 		#convert information about where the restriction happens to an offset on the top and bottom strand
 		#for example, BamHI -> 1/5 with respect to the start of the site match
-		hasNum = re.compile('-?\d+/-?\d+')
+		hasNum = re.compile('(-?\d+/-?\d+)')
 		not_completed = 1
 		for m in hasNum.finditer(recognitionsite):
 			(top, bottom) = m.group().split('/')
 		  	self.top_strand_offset = int(top)
 		  	self.bottom_strand_offset = int(bottom)
+		  	self.reach = True
 		  	not_completed = 0
 		p = re.compile("/")
 		for m in p.finditer(recognitionsite):
 			if not_completed:
 				self.top_strand_offset = int(m.start())
-				self.bottom_strand_offset = len(recognitionsite) - 1 - self.top_strand_offset	
+				self.bottom_strand_offset =  len(recognitionsite) - 1 - self.top_strand_offset	
 
 	def prettyPrint(self):
 		print "Name: ", self.name, "Recognition Site: ", self.recognition_site
