@@ -735,8 +735,10 @@ def Ligate(inputDNAs):
 	# 				products.append(DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence,'plasmid'))
 	return products
 
-#accepts list of dnas and a strain, unsure what it outputs...
+#accepts list of dnas and a strain, it should output a list of DNAs that survive the transformation
 def Transform(DNAs, strain):
+	#strain is a str, we'll look up the strains from a tsv
+	
 	return 0
 
 

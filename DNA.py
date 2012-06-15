@@ -51,6 +51,7 @@ class DNA(object):
 		self.bottomRightOverhang = ""
 		#PCR product, miniprep, genomic DNA
 		self.provenance = ""
+		self.lastStepConstr = "" #human readable construction file instructions for the last step of building this particular DNA
 		if DNAclass == "primer" or DNAclass == "genomic" or DNAclass == "PCR product" or DNAclass == "digest":
 			self.topology = "linear"
 		elif DNAclass == 'plasmid':
@@ -68,7 +69,9 @@ class DNA(object):
 		# TTATCG...[1034bp]...GGAA
 		#   ||||              ||||
 		#   TAGC..............CCTTAA
-		return 0
+		str_buff = "Name: "+self.name+" Length: "+self.length
+		
+		return str_buff
 	
 #taken from BioPython
 def BaseExpand(base):

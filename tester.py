@@ -21,4 +21,5 @@ if __name__ == "__main__":
 	products = Digest(plasmid,[EnzymeDictionary["EcoRI"], EnzymeDictionary["BceAI"]])
 	ligated = Ligate(products)
 	print "\nLigation product(s):"
-	print ligated
+	for product in ligated:
+		print product.sequence
