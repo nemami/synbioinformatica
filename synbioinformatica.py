@@ -511,9 +511,10 @@ def Digest(InputDNA, Enzymes):
 		if len(digested.sequence) < 4:
 			pass
 		else:
-			frags.append((currentStart,digested))
-		frags.sort()
-	return sites
+			# frags.append((currentStart,digested))
+			frags.append(digested)
+		# frags.sort()
+	return frags
 
 def revcomp(string):
        letters = list(string)
@@ -713,7 +714,27 @@ def FindDistEnz():
 
 #accepts list of DNA, outputs list of DNA
 def Ligate(inputDNAs):
-	return 0
+	products = []
+	# self ligation
+	for fragment in inputDNAs:
+		if fragment.topology == 'circular':
+			print 'Invalid input molecule removed -- only linear digest fragments accepted.'
+			inputDNAs.remove(fragment)
+		if fragment.topLeftOverhang.sequence != '':
+			if fragment.topLeftOverhang.sequence.lower() == Complement(fragment.bottomRightOverhang.sequence.lower()):
+				products.append(DNA(fragment.topLeftOverhang.sequence+fragment.sequence,'plasmid'))
+		elif fragment.bottomLeftOverhang.sequence != '':
+			if fragment.topLeftOverhang.sequence.lower() == Complement(fragment.topRightOverhang.sequence.lower()):
+				products.append(DNA(fragment.sequence+fragment.topRightOverhang.sequence,'plasmid'))
+	# TODO: pairwise ligation
+	# for fragOne in inputDNAs:
+	# 	for fragTwo in inputDNAs:
+	# There is a better way to this for sure...
+	# 		if fragOne.topLeftOverhang.sequence != '' and fragOne.bottomRightOverhang.sequence  != '' and fragTwo.topLeftOverhang.sequence  != '' and fragTwo.bottomRightOverhang.sequence != '':
+	# 			if fragOne.topLeftOverhang.sequence.lower() == Complement(fragTwo.bottomRightOverhang.sequence.lower()) and fragTwo.topLeftOverhang.sequence.lower() == Complement(fragOne.bottomRightOverhang.sequence.lower()):
+	# 				products.append(DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence,'plasmid'))
+	return products
+
 #accepts list of dnas and a strain, unsure what it outputs...
 def Transform(DNAs, strain):
 	return 0
