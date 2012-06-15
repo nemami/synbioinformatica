@@ -5,7 +5,6 @@ import sys, random, re, math
 from decimal import *
 
 # TODO: for PCR, identification of primers on the edge of a circular sequence
-# TODO: Digest function Error/Exception handling, e.g. proximity to terminal sequence on a linear fragment
 
 dna_alphabet = {'A':'A', 'C':'C', 'G':'G', 'T':'T',
                 'R':'AG', 'Y':'CT', 'W':'AT', 'S':'CG', 'M':'AC', 'K':'GT',
@@ -391,16 +390,26 @@ def Digest(InputDNA, Enzymes):
 		indices.sort()
 	# If you have overlapping restriction sites, choose the first one and discard they
 		# second (TODO: there may be a better, non-greedy way to do this... not sure)
-	for n in range(len(indices)-1):
-		(currentTuple, nextTuple) = (indices[n], indices[n+1])
-		(currentStart, nextStart) = (currentTuple[0], nextTuple[0])
-		if currentStart + len(enzyme.alpha_only_site) >= nextStart:
-			currentIndex = indices[n+1]
-			if currentIndex[0] == len(InputDNA.sequence):
-				# WARNING: throw overlapping restriction sites exception
-				pass
-			else:
-				indices.pop(n+1)
+	filtered = []
+	n = 0
+	while n < len(indices):
+		try:
+			(currentTuple, nextTuple) = (indices[n], indices[n+1])
+			(currentStart, nextStart) = (currentTuple[0], nextTuple[0])
+			filtered.append(indices[n])
+			if currentStart + len(enzyme.alpha_only_site) >= nextStart:
+				currentIndex = indices[n+1]
+				if currentIndex[0] == len(InputDNA.sequence):
+					pass
+				else:
+					print 'WARNING: overlapping restriction sites '+currentTuple[3].name+' (indices '+str(currentTuple[0])+','+str(currentTuple[1])+') and '+nextTuple[3].name+' (indices '+str(nextTuple[0])+','+str(nextTuple[1])+')'
+					n = n + 1
+			n = n + 1
+		except:
+			# got to end of list,
+			filtered.append(indices[n])
+			n = n + 1
+	indices = filtered
 	# If it's linear, only act on the first n - 1 fragments until you hit the blunt ending
 		# If it's circular, then the 'last' segment is adjacent to the 'first' one, so you
 		# need to consider the adjacency relationships among the full n fragments
