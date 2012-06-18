@@ -572,6 +572,65 @@ class DNA(object):
 	def find(self, string):
 		return 0
 	def prettyPrint(self):
+		if self.DNAclass == 'digest':
+			(TL,TR,BL,BR) = SetFlags(self)
+			if TL:
+				if len(self.sequence) > 8:
+					trExtra = ''
+					brExtra = ''
+					if TR:
+						trExtra = self.topRightOverhang.sequence
+					if BR:
+						brExtra = self.bottomRightOverhang.sequence
+					print "\t"+self.topLeftOverhang.sequence+self.sequence[:4]+'.'*3+'['+str(len(self.sequence)-8)+'bp]'+'.'*3+self.sequence[len(self.sequence)-4:]+trExtra
+					print "\t"+' '*len(self.topLeftOverhang.sequence)+'|'*4+' '*(10+len(str(len(self.sequence)-8)))+'|'*4
+					print "\t"+' '*len(self.topLeftOverhang.sequence)+reverseComplement(self.sequence[:4])+'.'*(10+len(str(len(self.sequence)-8)))+reverseComplement(self.sequence[len(self.sequence)-4:])+brExtra
+				else:
+					trExtra = ''
+					brExtra = ''
+					if TR:
+						trExtra = self.topRightOverhang.sequence
+					if BR:
+						brExtra = self.bottomRightOverhang.sequence
+					print "\t"+self.topLeftOverhang.sequence+self.sequence+trExtra
+					print "\t"+' '*len(self.topLeftOverhang.sequence)+'|'*len(self.sequence)
+					print "\t"+' '*len(self.topLeftOverhang.sequence)+reverseComplement(self.sequence)+brExtra
+			elif BL:
+				if len(self.sequence) > 8:
+					trExtra = ''
+					brExtra = ''
+					if TR:
+						trExtra = self.topRightOverhang.sequence
+					if BR:
+						brExtra = self.bottomRightOverhang.sequence
+					print "\t"+' '*len(self.bottomLeftOverhang.sequence)+self.sequence[:4]+'.'*3+'['+str(len(self.sequence)-8)+'bp]'+'.'*3+self.sequence[len(self.sequence)-4:]+trExtra
+					print "\t"+' '*len(self.topLeftOverhang.sequence)+'|'*4+' '*(10+len(str(len(self.sequence)-8)))+'|'*4
+					print "\t"+self.bottomLeftOverhang.sequence+reverseComplement(self.sequence[:4])+'.'*(10+len(str(len(self.sequence)-8)))+reverseComplement(self.sequence[len(self.sequence)-4:])+brExtra
+				else:
+					trExtra = ''
+					brExtra = ''
+					if TR:
+						trExtra = self.topRightOverhang.sequence
+					if BR:
+						brExtra = self.bottomRightOverhang.sequence
+					print "\t"+' '*len(self.bottomLeftOverhang.sequence)+self.sequence+trExtra
+					print "\t"+' '*len(self.topLeftOverhang.sequence)+'|'*len(self.sequence)
+					print "\t"+self.bottomLeftOverhang.sequence+reverseComplement(self.sequence)+brExtra
+		else:
+			if len(self.sequence) > 8:
+				print "\t"+self.sequence[:4]+'.'*3+'['+str(len(self.sequence)-8)+'bp]'+'.'*3+self.sequence[len(self.sequence)-4:]
+				print "\t"+'|'*4+' '*(10+len(str(len(self.sequence)-8)))+'|'*4
+				print "\t"+reverseComplement(self.sequence[:4])+'.'*(10+len(str(len(self.sequence)-8)))+reverseComplement(self.sequence[len(self.sequence)-4:])
+			else:
+				print "\t"+self.sequence
+				print "\t"+'|'*len(self.sequence)
+				print "\t"+reverseComplement(self.sequence)
+
+
+
+
+
+
 		#prints out top and bottom strands, truncates middle so length is ~100bp
 		#example:
 		# TTATCG...[1034bp]...GGAA
@@ -759,6 +818,7 @@ def Ligate(inputDNAs):
 			fragTwo = inputDNAs[j]
 			(LTL,LTR,LBL,LBR) = SetFlags(fragOne)
 			(RTL,RTR,RBL,RBR) = SetFlags(fragTwo)
+			# first3 is the number of 3' overhangs for the left fragment, and so on for the other three classifiers
 			(first3, first5, second3, second5) = (LTR + LBL, LBR + LTL, RTR + RBL, RBR + RTL)
 			if first3 == 2:
 				if fragOne.topRightOverhang.sequence.upper() == Complement(fragTwo.bottomLeftOverhang.sequence).upper():
