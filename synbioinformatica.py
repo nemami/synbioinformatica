@@ -363,7 +363,6 @@ def Digest(InputDNA, Enzymes):
 		# fixed: DNA('TGACTGCCGTTCATGGTGAGATGAGTGAAGGCGAGCTGGTGGATGCATTCCGCCATGTGAGTGATGCGTTTGAGCAAACCAGCGAAACCATCGGCGTGCGCGCCAATAACGCGATCAACGACATGGTGCGTCAACGTCTGCTGAACCGCTTTACCAGCGAGCAGGCGGAAGGGAACGCAATTTACCGTCTGACGCCGCTCGGCATCGGCATTACTGACTACNNNATCCGTCAGCGCGAGTTTTCTACGCTGCGTCTTTCTATGCAGTTGTCGATTGTGGCGGGTGAGCTCAAACGCGCAGCAGATGCCGCCGAAGAGGGCGGTGATGAATTTCACTGGCACCGTAATGTCTATGCGCCACTGAAATATTCGGTAGCAGAAATTTTCGACAGTATCGACCTGACGCAACGTCTGATGGACGAACAGCAGCAGCAGGTGAAGGACGATATCGCCCAGTTGCTGAACAAAGACTGGCGGGCGGCGATTTCCAGCTGGATCCTGAATTGTTGCTTTCGGAAACTTCCGGAACGCTGCGTGAATTGCAGGATACGCTGGAAGCGGCAGGCGACAAATTGCAGGCTAATCTGTTGCGCATTCAGGATGCGACGATGACCCATGACGATCTGCATTTCGTCGATCGTCTGGTGTTCGATCTGCAGAGCAAACTCGATCGTATTATCAGTTGGGGCCAGCAATCCATCGACTTGTGGATTGGCTACGACCGCCACGTACACAAATTTATTCGTACCGCGATCGATATGGATAAAAACCGCGTCTTTGCTCAGCGGTTACGTCAGTCGGTACAAACCTATTTTGATGAACGGCGGGCGCTAACTTATGCCAATGCCGATCGTCTGCTGGATATGCGTGACGAAGAGATGGCACTGCGCGATGAAGAAGTGACTGGGGAACTTCCTGAGGATCTGGAATACGAAGAGTTTAACGAGATCCGCGAACAGCTGGCGGCGATCATCGAAGAACAACTTGCCGTGTACAAAACCAGACAAGTGCCGCTGGATCTTGGTCTGGTGGTACGCGAATATCTGTCACAGTATCCGCGTGCACGTCACTTTGACGTTGCGCGTATTGTTATTGATACCTGACGCAACGTCTGCGAATTCCTGCAGTA','PCR product')
 		# fixed: DNA('GATGACTGAATTCTCATGGTGAGATGAGTGAAGGCGAGCTGGTGGATGCATTCCGCCATGTGAGTGATGCGTTTGAGCAAACCAGCGAAACCATCGGCGTGCGCGCCAATAACGCGATCAACGACATGGTGCGTCAACGTCTGCTGAACCGCTTTACCAGCGAGCAGGCGGAAGGGAACGCAATTTACCGTCTGACGCCGCTCGGCATCGGCATTACTGACTACNNNATCCGTCAGCGCGAGTTTTCTACGCTGCGTCTTTCTATGCAGTTGTCGATTGTGGCGGGTGAGCTCAAACGCGCAGCAGATGCCGCCGAAGAGGGCGGTGATGAATTTCACTGGCACCGTAATGTCTATGCGCCACTGAAATATTCGGTAGCAGAAATTTTCGACAGTATCGACCTGACGCAACGTCTGATGGACGAACAGCAGCAGCAGGTGAAGGACGATATCGCCCAGTTGCTGAACAAAGACTGGCGGGCGGCGATTTCCAGCTGGATCCTGAATTGTTGCTTTCGGAAACTTCCGGAACGCTGCGTGAATTGCAGGATACGCTGGAAGCGGCAGGCGACAAATTGCAGGCTAATCTGTTGCGCATTCAGGATGCGACGATGACCCATGACGATCTGCATTTCGTCGATCGTCTGGTGTTCGATCTGCAGAGCAAACTCGATCGTATTATCAGTTGGGGCCAGCAATCCATCGACTTGTGGATTGGCTACGACCGCCACGTACACAAATTTATTCGTACCGCGATCGATATGGATAAAAACCGCGTCTTTGCTCAGCGGTTACGTCAGTCGGTACAAACCTATTTTGATGAACGGCGGGCGCTAACTTATGCCAATGCCGATCGTCTGCTGGATATGCGTGACGAAGAGATGGCACTGCGCGATGAAGAAGTGACTGGGGAACTTCCTGAGGATCTGGAATACGAAGAGTTTAACGAGATCCGCGAACAGCTGGCGGCGATCATCGAAGAACAACTTGCCGTGTACAAAACCAGACAAGTGCCGCTGGATCTTGGTCTGGTGGTACGCGAATATCTGTCACAGTATCCGCGTGCACGTCACTTTGACGTTGCGCGTATTGTTATTGATACCTGACGCAACGTCTGCGAATTCCTGCAGTA', 'plasmid')
 	# print 'Input DNA ('+InputDNA.topology+'): '+InputDNA.sequence
-	print 'Input DNA ('+InputDNA.topology+')'
 	(indices, frags, sites, totalLength) = ([], [], "", len(InputDNA.sequence)) # Initialization
 	if InputDNA.topology == "linear":	
 		# Initialize indices array with start and end indices of the linear fragment
@@ -483,9 +482,9 @@ def Digest(InputDNA, Enzymes):
 				digested.bottomLeftOverhang = Overhang(Complement(InputDNA.sequence[currentStart-difference:]+InputDNA.sequence[:currentStart]))
 			else:
 				digested.bottomLeftOverhang = Overhang(Complement(InputDNA.sequence[currentStart-difference:currentStart]))
-		print 'Fragment: '+digested.sequence
-		print 'Fragment.TLO: '+ digested.topLeftOverhang.sequence + " ("+str(currentStart-difference)+","+str(currentStart)+")"
-		print 'Fragment.BLO: '+ digested.bottomLeftOverhang.sequence + " ("+str(currentStart-difference)+","+str(currentStart)+")"
+		# print 'Fragment: '+digested.sequence
+		# print 'Fragment.TLO: '+ digested.topLeftOverhang.sequence + " ("+str(currentStart-difference)+","+str(currentStart)+")"
+		# print 'Fragment.BLO: '+ digested.bottomLeftOverhang.sequence + " ("+str(currentStart-difference)+","+str(currentStart)+")"
 		# Adjust top and bottom overhang values based on the orientation of the restriction site
 		if direction == "sense":
 			(TO, BO) = (NTO, NBO)
@@ -510,8 +509,8 @@ def Digest(InputDNA, Enzymes):
 			else:
 				digested.topRightOverhang = Overhang(InputDNA.sequence[digEnd:digDiff])
 			digested.bottomRightOverhang = Overhang('')
-		print 'Fragment.TRO: '+ digested.topRightOverhang.sequence + " ("+str(digEnd)+","+str(digDiff)+")"
-		print 'Fragment.BRO: '+ digested.bottomRightOverhang.sequence + " ("+str(digEnd)+","+str(digDiff)+")"
+		# print 'Fragment.TRO: '+ digested.topRightOverhang.sequence + " ("+str(digEnd)+","+str(digDiff)+")"
+		# print 'Fragment.BRO: '+ digested.bottomRightOverhang.sequence + " ("+str(digEnd)+","+str(digDiff)+")"
 		# Discard small fragments
 		# TODO: what is the right length for this? For a zymo we will discard all small frags, but without Zymo not clear what is best
 		if len(digested.sequence) < 4:
@@ -572,50 +571,33 @@ class DNA(object):
 	def find(self, string):
 		return 0
 	def prettyPrint(self):
+		#prints out top and bottom strands, truncates middle so length is ~100bp
+		#example:
+		# TTATCG...[1034bp]...GGAA
+		#   ||||              ||||
+		#   TAGC..............CCTTAA
 		if self.DNAclass == 'digest':
 			(TL,TR,BL,BR) = SetFlags(self)
-			if TL:
-				if len(self.sequence) > 8:
-					trExtra = ''
-					brExtra = ''
-					if TR:
-						trExtra = self.topRightOverhang.sequence
-					if BR:
-						brExtra = self.bottomRightOverhang.sequence
-					print "\t"+self.topLeftOverhang.sequence+self.sequence[:4]+'.'*3+'['+str(len(self.sequence)-8)+'bp]'+'.'*3+self.sequence[len(self.sequence)-4:]+trExtra
-					print "\t"+' '*len(self.topLeftOverhang.sequence)+'|'*4+' '*(10+len(str(len(self.sequence)-8)))+'|'*4
-					print "\t"+' '*len(self.topLeftOverhang.sequence)+reverseComplement(self.sequence[:4])+'.'*(10+len(str(len(self.sequence)-8)))+reverseComplement(self.sequence[len(self.sequence)-4:])+brExtra
-				else:
-					trExtra = ''
-					brExtra = ''
-					if TR:
-						trExtra = self.topRightOverhang.sequence
-					if BR:
-						brExtra = self.bottomRightOverhang.sequence
-					print "\t"+self.topLeftOverhang.sequence+self.sequence+trExtra
-					print "\t"+' '*len(self.topLeftOverhang.sequence)+'|'*len(self.sequence)
-					print "\t"+' '*len(self.topLeftOverhang.sequence)+reverseComplement(self.sequence)+brExtra
-			elif BL:
-				if len(self.sequence) > 8:
-					trExtra = ''
-					brExtra = ''
-					if TR:
-						trExtra = self.topRightOverhang.sequence
-					if BR:
-						brExtra = self.bottomRightOverhang.sequence
-					print "\t"+' '*len(self.bottomLeftOverhang.sequence)+self.sequence[:4]+'.'*3+'['+str(len(self.sequence)-8)+'bp]'+'.'*3+self.sequence[len(self.sequence)-4:]+trExtra
-					print "\t"+' '*len(self.topLeftOverhang.sequence)+'|'*4+' '*(10+len(str(len(self.sequence)-8)))+'|'*4
-					print "\t"+self.bottomLeftOverhang.sequence+reverseComplement(self.sequence[:4])+'.'*(10+len(str(len(self.sequence)-8)))+reverseComplement(self.sequence[len(self.sequence)-4:])+brExtra
-				else:
-					trExtra = ''
-					brExtra = ''
-					if TR:
-						trExtra = self.topRightOverhang.sequence
-					if BR:
-						brExtra = self.bottomRightOverhang.sequence
-					print "\t"+' '*len(self.bottomLeftOverhang.sequence)+self.sequence+trExtra
-					print "\t"+' '*len(self.topLeftOverhang.sequence)+'|'*len(self.sequence)
-					print "\t"+self.bottomLeftOverhang.sequence+reverseComplement(self.sequence)+brExtra
+			if len(self.sequence) > 8:
+				trExtra = ''
+				brExtra = ''
+				if TR:
+					trExtra = self.topRightOverhang.sequence
+				if BR:
+					brExtra = self.bottomRightOverhang.sequence
+				print "\t"+self.topLeftOverhang.sequence+' '*len(self.bottomLeftOverhang.sequence)+self.sequence[:4]+'.'*3+'['+str(len(self.sequence)-8)+'bp]'+'.'*3+self.sequence[len(self.sequence)-4:]+trExtra
+				print "\t"+' '*len(self.topLeftOverhang.sequence)+'|'*4+' '*(10+len(str(len(self.sequence)-8)))+'|'*4
+				print "\t"+' '*len(self.topLeftOverhang.sequence)+self.bottomLeftOverhang.sequence+reverseComplement(self.sequence[:4])+'.'*(10+len(str(len(self.sequence)-8)))+reverseComplement(self.sequence[len(self.sequence)-4:])+brExtra
+			else:
+				trExtra = ''
+				brExtra = ''
+				if TR:
+					trExtra = self.topRightOverhang.sequence
+				if BR:
+					brExtra = self.bottomRightOverhang.sequence
+				print "\t"+self.topLeftOverhang.sequence+' '*len(self.bottomLeftOverhang.sequence)+self.sequence+trExtra
+				print "\t"+' '*len(self.topLeftOverhang.sequence)+'|'*len(self.sequence)
+				print "\t"+' '*len(self.topLeftOverhang.sequence)+self.bottomLeftOverhang.sequence+reverseComplement(self.sequence)+brExtra
 		else:
 			if len(self.sequence) > 8:
 				print "\t"+self.sequence[:4]+'.'*3+'['+str(len(self.sequence)-8)+'bp]'+'.'*3+self.sequence[len(self.sequence)-4:]
@@ -625,17 +607,6 @@ class DNA(object):
 				print "\t"+self.sequence
 				print "\t"+'|'*len(self.sequence)
 				print "\t"+reverseComplement(self.sequence)
-
-
-
-
-
-
-		#prints out top and bottom strands, truncates middle so length is ~100bp
-		#example:
-		# TTATCG...[1034bp]...GGAA
-		#   ||||              ||||
-		#   TAGC..............CCTTAA
 		return 0
 	
 #taken from BioPython
