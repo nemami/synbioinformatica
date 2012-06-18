@@ -385,11 +385,6 @@ def getDhHash():
 	return dictionary
 
 def Digest(InputDNA, Enzymes):
-	# TODO: Error/Exception handling
-		# fixed: DNA('TGGGGACTGCCGTTCATGGTGAGATGAGTGAAGGCGAGCTGGTGGATGCATTCCGCCATGTGAGTGATGCGTTTGAGCAAACCAGCGAAACCATCGGCGTGCGCGCCAATAACGCGATCAACGACATGGTGCGTCAACGTCTGCTGAACCGCTTTACCAGCGAGCAGGCGGAAGGGAACGCAATTTACCGTCTGACGCCGCTCGGCATCGGCATTACTGACTACNNNATCCGTCAGCGCGAGTTTTCTACGCTGCGTCTTTCTATGCAGTTGTCGATTGTGGCGGGTGAGCTCAAACGCGCAGCAGATGCCGCCGAAGAGGGCGGTGATGAATTTCACTGGCACCGTAATGTCTATGCGCCACTGAAATATTCGGTAGCAGAAATTTTCGACAGTATCGACCTGACGCAACGTCTGATGGACGAACAGCAGCAGCAGGTGAAGGACGATATCGCCCAGTTGCTGAACAAAGACTGGCGGGCGGCGATTTCCAGCTGGATCCTGAATTGTTGCTTTCGGAAACTTCCGGAACGCTGCGTGAATTGCAGGATACGCTGGAAGCGGCAGGCGACAAATTGCAGGCTAATCTGTTGCGCATTCAGGATGCGACGATGACCCATGACGATCTGCATTTCGTCGATCGTCTGGTGTTCGATCTGCAGAGCAAACTCGATCGTATTATCAGTTGGGGCCAGCAATCCATCGACTTGTGGATTGGCTACGACCGCCACGTACACAAATTTATTCGTACCGCGATCGATATGGATAAAAACCGCGTCTTTGCTCAGCGGTTACGTCAGTCGGTACAAACCTATTTTGATGAACGGCGGGCGCTAACTTATGCCAATGCCGATCGTCTGCTGGATATGCGTGACGAAGAGATGGCACTGCGCGATGAAGAAGTGACTGGGGAACTTCCTGAGGATCTGGAATACGAAGAGTTTAACGAGATCCGCGAACAGCTGGCGGCGATCATCGAAGAACAACTTGCCGTGTACAAAACCAGACAAGTGCCGCTGGATCTTGGTCTGGTGGTACGCGAATATCTGTCACAGTATCCGCGTGCACGTCACTTTGACGTTGCGCGTATTGTTATTGATACCTGACGCAACGTCTGCGAATTCCTGCAGTA','plasmid')
-		# fixed: DNA('TGACTGCCGTTCATGGTGAGATGAGTGAAGGCGAGCTGGTGGATGCATTCCGCCATGTGAGTGATGCGTTTGAGCAAACCAGCGAAACCATCGGCGTGCGCGCCAATAACGCGATCAACGACATGGTGCGTCAACGTCTGCTGAACCGCTTTACCAGCGAGCAGGCGGAAGGGAACGCAATTTACCGTCTGACGCCGCTCGGCATCGGCATTACTGACTACNNNATCCGTCAGCGCGAGTTTTCTACGCTGCGTCTTTCTATGCAGTTGTCGATTGTGGCGGGTGAGCTCAAACGCGCAGCAGATGCCGCCGAAGAGGGCGGTGATGAATTTCACTGGCACCGTAATGTCTATGCGCCACTGAAATATTCGGTAGCAGAAATTTTCGACAGTATCGACCTGACGCAACGTCTGATGGACGAACAGCAGCAGCAGGTGAAGGACGATATCGCCCAGTTGCTGAACAAAGACTGGCGGGCGGCGATTTCCAGCTGGATCCTGAATTGTTGCTTTCGGAAACTTCCGGAACGCTGCGTGAATTGCAGGATACGCTGGAAGCGGCAGGCGACAAATTGCAGGCTAATCTGTTGCGCATTCAGGATGCGACGATGACCCATGACGATCTGCATTTCGTCGATCGTCTGGTGTTCGATCTGCAGAGCAAACTCGATCGTATTATCAGTTGGGGCCAGCAATCCATCGACTTGTGGATTGGCTACGACCGCCACGTACACAAATTTATTCGTACCGCGATCGATATGGATAAAAACCGCGTCTTTGCTCAGCGGTTACGTCAGTCGGTACAAACCTATTTTGATGAACGGCGGGCGCTAACTTATGCCAATGCCGATCGTCTGCTGGATATGCGTGACGAAGAGATGGCACTGCGCGATGAAGAAGTGACTGGGGAACTTCCTGAGGATCTGGAATACGAAGAGTTTAACGAGATCCGCGAACAGCTGGCGGCGATCATCGAAGAACAACTTGCCGTGTACAAAACCAGACAAGTGCCGCTGGATCTTGGTCTGGTGGTACGCGAATATCTGTCACAGTATCCGCGTGCACGTCACTTTGACGTTGCGCGTATTGTTATTGATACCTGACGCAACGTCTGCGAATTCCTGCAGTA','PCR product')
-		# fixed: DNA('GATGACTGAATTCTCATGGTGAGATGAGTGAAGGCGAGCTGGTGGATGCATTCCGCCATGTGAGTGATGCGTTTGAGCAAACCAGCGAAACCATCGGCGTGCGCGCCAATAACGCGATCAACGACATGGTGCGTCAACGTCTGCTGAACCGCTTTACCAGCGAGCAGGCGGAAGGGAACGCAATTTACCGTCTGACGCCGCTCGGCATCGGCATTACTGACTACNNNATCCGTCAGCGCGAGTTTTCTACGCTGCGTCTTTCTATGCAGTTGTCGATTGTGGCGGGTGAGCTCAAACGCGCAGCAGATGCCGCCGAAGAGGGCGGTGATGAATTTCACTGGCACCGTAATGTCTATGCGCCACTGAAATATTCGGTAGCAGAAATTTTCGACAGTATCGACCTGACGCAACGTCTGATGGACGAACAGCAGCAGCAGGTGAAGGACGATATCGCCCAGTTGCTGAACAAAGACTGGCGGGCGGCGATTTCCAGCTGGATCCTGAATTGTTGCTTTCGGAAACTTCCGGAACGCTGCGTGAATTGCAGGATACGCTGGAAGCGGCAGGCGACAAATTGCAGGCTAATCTGTTGCGCATTCAGGATGCGACGATGACCCATGACGATCTGCATTTCGTCGATCGTCTGGTGTTCGATCTGCAGAGCAAACTCGATCGTATTATCAGTTGGGGCCAGCAATCCATCGACTTGTGGATTGGCTACGACCGCCACGTACACAAATTTATTCGTACCGCGATCGATATGGATAAAAACCGCGTCTTTGCTCAGCGGTTACGTCAGTCGGTACAAACCTATTTTGATGAACGGCGGGCGCTAACTTATGCCAATGCCGATCGTCTGCTGGATATGCGTGACGAAGAGATGGCACTGCGCGATGAAGAAGTGACTGGGGAACTTCCTGAGGATCTGGAATACGAAGAGTTTAACGAGATCCGCGAACAGCTGGCGGCGATCATCGAAGAACAACTTGCCGTGTACAAAACCAGACAAGTGCCGCTGGATCTTGGTCTGGTGGTACGCGAATATCTGTCACAGTATCCGCGTGCACGTCACTTTGACGTTGCGCGTATTGTTATTGATACCTGACGCAACGTCTGCGAATTCCTGCAGTA', 'plasmid')
-	# print 'Input DNA ('+InputDNA.topology+'): '+InputDNA.sequence
 	(indices, frags, sites, totalLength) = ([], [], "", len(InputDNA.sequence)) # Initialization
 	if InputDNA.topology == "linear":	
 		# Initialize indices array with start and end indices of the linear fragment
@@ -509,9 +504,6 @@ def Digest(InputDNA, Enzymes):
 				digested.bottomLeftOverhang = Overhang(Complement(InputDNA.sequence[currentStart-difference:]+InputDNA.sequence[:currentStart]))
 			else:
 				digested.bottomLeftOverhang = Overhang(Complement(InputDNA.sequence[currentStart-difference:currentStart]))
-		# print 'Fragment: '+digested.sequence
-		# print 'Fragment.TLO: '+ digested.topLeftOverhang.sequence + " ("+str(currentStart-difference)+","+str(currentStart)+")"
-		# print 'Fragment.BLO: '+ digested.bottomLeftOverhang.sequence + " ("+str(currentStart-difference)+","+str(currentStart)+")"
 		# Adjust top and bottom overhang values based on the orientation of the restriction site
 		if direction == "sense":
 			(TO, BO) = (NTO, NBO)
@@ -536,10 +528,7 @@ def Digest(InputDNA, Enzymes):
 			else:
 				digested.topRightOverhang = Overhang(InputDNA.sequence[digEnd:digDiff])
 			digested.bottomRightOverhang = Overhang('')
-		# print 'Fragment.TRO: '+ digested.topRightOverhang.sequence + " ("+str(digEnd)+","+str(digDiff)+")"
-		# print 'Fragment.BRO: '+ digested.bottomRightOverhang.sequence + " ("+str(digEnd)+","+str(digDiff)+")"
 		# Discard small fragments
-		# TODO: what is the right length for this? For a zymo we will discard all small frags, but without Zymo not clear what is best
 		if len(digested.sequence) < 4:
 			pass
 		else:
@@ -861,14 +850,28 @@ def Ligate(inputDNAs):
 		i = i + 1
 	return products
 
-# def ZymoPurify(inputDNAs):
-# 	if len(inputDNAs) == 0:
-# 		print 'WARNING: GelPurify function passed empty input list -- will return empty output'
-# 		return inputDNAs
-# 	elif len(inputDNAs) == 1:
-		
-# 	return inputDNAs
+def ZymoPurify(inputDNAs):
+	if len(inputDNAs) == 0:
+		print 'WARNING: GelPurify function passed empty input list -- will return empty output'
+		return inputDNAs
+	outputBands = []
+	sizeTuples = []
+	for DNA in inputDNAs:
+		fragSize = len(DNA.sequence)
+		sizeTuples.append((fragSize,DNA))
+	sizeTuples.sort(reverse=True)
+	currentTuple = sizeTuples[0]
+	currentSize = currentTuple[0]
+	while currentSize > 300 and len(sizeTuples) > 1:
+		outputBands.append(currentTuple[1])
+		sizeTuples.pop(0)
+		currentTuple = sizeTuples[0]
+		currentSize = currentTuple[0]
+	if currentSize > 300:
+		outputBands.append(currentTuple[1])
+	return outputBands
 
+# 'strategies' = {'L','S','[Integer value]'}
 def GelPurify(inputDNAs,strategy):
 	# sort based on size
 	if len(inputDNAs) == 0:
@@ -888,11 +891,13 @@ def GelPurify(inputDNAs,strategy):
 			currentTuple = sizeTuples[n]
 			largestSize = currentTuple[n]
 			currentSize = largestSize
-			while currentSize > (5/6)*largestSize:
+			while currentSize > largestSize * 5/6 and n < len(sizeTuples) - 1:
 				outputBands.append(currentTuple[1])
 				n = n + 1
 				currentTuple = sizeTuples[n]
-				currentSize = currentTuple[n]
+				currentSize = currentTuple[0]
+			if currentSize > largestSize * 5/6:
+				outputBands.append(currentTuple[1])
 			if len(outputBands) > 1:
 				print "WARNING: large fragment purification resulted in purification of multiple, possibly unintended distinct DNAs."
 		elif strategy == 'S':
@@ -901,22 +906,30 @@ def GelPurify(inputDNAs,strategy):
 			currentTuple = sizeTuples[n]
 			smallestSize = currentTuple[n]
 			currentSize = smallestSize
-			while currentSize < (6/5)*smallestSize:
+			while currentSize < smallestSize * 5/6 and n < len(sizeTuples) - 1:
 				outputBands.append(currentTuple[1])
 				n = n + 1
 				currentTuple = sizeTuples[n]
-				currentSize = currentTuple[n]
+				currentSize = currentTuple[0]
+			if currentSize > smallestSize * 5/6:
+				outputBands.append(currentTuple[1])
 			if len(outputBands) > 1:
 				print "WARNING: small fragment purification resulted in purification of multiple, possibly unintended distinct DNAs."
 	elif isinstance( strategy, ( int, long ) ):
 		sizeTuples.sort(reverse=True)
 		currentTuple = sizeTuples[0]
 		currentSize = currentTuple[0]
-		while currentSize > (6/5)*strategy:
+		while currentSize > strategy * 6/5 and len(sizeTuples) > 1:
 			sizeTuples.pop(0)
-		while currentSize > (5/6)*strategy:
+			currentTuple = sizeTuples[0]
+			currentSize = currentTuple[0]
+		while currentSize > strategy * 5/6 and len(sizeTuples) > 1:
 			band = sizeTuples.pop(0)
-			outputBands.append(band)
+			outputBands.append(band[1])
+			currentTuple = sizeTuples[0]
+			currentSize = currentTuple[0]
+		if currentSize > strategy * 5/6:
+			outputBands.append(currentTuple[1])
 		if len(outputBands) == 0:
 			print "WARNING: no digest bands present in given range, purification yielding zero DNA products."
 		elif len(outputBands) > 1:
