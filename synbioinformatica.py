@@ -5,9 +5,9 @@ import sys, random, re, math
 from decimal import *
 
 
-
+# TODO: hashing and recognition of redundant digest / ligation products? or some sort of weighting based on species abundance?
+# TODO: AssemblyTree nodes and class structure
 # TODO: for PCR, identification of primers on the edge of a circular sequence
-
 
 
 dna_alphabet = {'A':'A', 'C':'C', 'G':'G', 'T':'T',
@@ -852,7 +852,7 @@ def Ligate(inputDNAs):
 
 def ZymoPurify(inputDNAs):
 	if len(inputDNAs) == 0:
-		print 'WARNING: GelPurify function passed empty input list -- will return empty output'
+		print 'WARNING: ZymoPurify function passed empty input list -- will return empty output'
 		return inputDNAs
 	outputBands = []
 	sizeTuples = []
@@ -868,6 +868,28 @@ def ZymoPurify(inputDNAs):
 		currentTuple = sizeTuples[0]
 		currentSize = currentTuple[0]
 	if currentSize > 300:
+		outputBands.append(currentTuple[1])
+	return outputBands
+
+# TODO: Find more exact threshold (currently at 15)?
+def ShortFragmentCleanup(inputDNAs):
+	if len(inputDNAs) == 0:
+		print 'WARNING: ShortFragmentCleanup function passed empty input list -- will return empty output'
+		return inputDNAs
+	outputBands = []
+	sizeTuples = []
+	for DNA in inputDNAs:
+		fragSize = len(DNA.sequence)
+		sizeTuples.append((fragSize,DNA))
+	sizeTuples.sort(reverse=True)
+	currentTuple = sizeTuples[0]
+	currentSize = currentTuple[0]
+	while currentSize > 15 and len(sizeTuples) > 1:
+		outputBands.append(currentTuple[1])
+		sizeTuples.pop(0)
+		currentTuple = sizeTuples[0]
+		currentSize = currentTuple[0]
+	if currentSize > 15:
 		outputBands.append(currentTuple[1])
 	return outputBands
 
