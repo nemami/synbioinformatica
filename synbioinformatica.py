@@ -861,6 +861,67 @@ def Ligate(inputDNAs):
 		i = i + 1
 	return products
 
+# def ZymoPurify(inputDNAs):
+# 	if len(inputDNAs) == 0:
+# 		print 'WARNING: GelPurify function passed empty input list -- will return empty output'
+# 		return inputDNAs
+# 	elif len(inputDNAs) == 1:
+		
+# 	return inputDNAs
+
+def GelPurify(inputDNAs,strategy):
+	# sort based on size
+	if len(inputDNAs) == 0:
+		print 'WARNING: GelPurify function passed empty input list -- will return empty output'
+		return inputDNAs
+	elif len(inputDNAs) == 1:
+		return inputDNAs
+	outputBands = []
+	sizeTuples = []
+	for DNA in inputDNAs:
+		fragSize = len(DNA.sequence)
+		sizeTuples.append((fragSize,DNA))
+	if isinstance( strategy, str):
+		if strategy == 'L':
+			sizeTuples.sort(reverse=True)
+			n = 0
+			currentTuple = sizeTuples[n]
+			largestSize = currentTuple[n]
+			currentSize = largestSize
+			while currentSize > (5/6)*largestSize:
+				outputBands.append(currentTuple[1])
+				n = n + 1
+				currentTuple = sizeTuples[n]
+				currentSize = currentTuple[n]
+			if len(outputBands) > 1:
+				print "WARNING: large fragment purification resulted in purification of multiple, possibly unintended distinct DNAs."
+		elif strategy == 'S':
+			sizeTuples.sort()
+			n = 0
+			currentTuple = sizeTuples[n]
+			smallestSize = currentTuple[n]
+			currentSize = smallestSize
+			while currentSize < (6/5)*smallestSize:
+				outputBands.append(currentTuple[1])
+				n = n + 1
+				currentTuple = sizeTuples[n]
+				currentSize = currentTuple[n]
+			if len(outputBands) > 1:
+				print "WARNING: small fragment purification resulted in purification of multiple, possibly unintended distinct DNAs."
+	elif isinstance( strategy, ( int, long ) ):
+		sizeTuples.sort(reverse=True)
+		currentTuple = sizeTuples[0]
+		currentSize = currentTuple[0]
+		while currentSize > (6/5)*strategy:
+			sizeTuples.pop(0)
+		while currentSize > (5/6)*strategy:
+			band = sizeTuples.pop(0)
+			outputBands.append(band)
+		if len(outputBands) == 0:
+			print "WARNING: no digest bands present in given range, purification yielding zero DNA products."
+		elif len(outputBands) > 1:
+			print "WARNING: fragment purification in range of band size "+str(strategy)+" resulted in purification of multiple, possibly unintended distinct DNAs."
+	return outputBands
 
 ###checks for presence of regex-encoded feature in seq
 def HasFeature(regex, seq):
