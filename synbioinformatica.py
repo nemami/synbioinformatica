@@ -389,7 +389,7 @@ def Digest(InputDNA, Enzymes):
 		# fixed: DNA('TGGGGACTGCCGTTCATGGTGAGATGAGTGAAGGCGAGCTGGTGGATGCATTCCGCCATGTGAGTGATGCGTTTGAGCAAACCAGCGAAACCATCGGCGTGCGCGCCAATAACGCGATCAACGACATGGTGCGTCAACGTCTGCTGAACCGCTTTACCAGCGAGCAGGCGGAAGGGAACGCAATTTACCGTCTGACGCCGCTCGGCATCGGCATTACTGACTACNNNATCCGTCAGCGCGAGTTTTCTACGCTGCGTCTTTCTATGCAGTTGTCGATTGTGGCGGGTGAGCTCAAACGCGCAGCAGATGCCGCCGAAGAGGGCGGTGATGAATTTCACTGGCACCGTAATGTCTATGCGCCACTGAAATATTCGGTAGCAGAAATTTTCGACAGTATCGACCTGACGCAACGTCTGATGGACGAACAGCAGCAGCAGGTGAAGGACGATATCGCCCAGTTGCTGAACAAAGACTGGCGGGCGGCGATTTCCAGCTGGATCCTGAATTGTTGCTTTCGGAAACTTCCGGAACGCTGCGTGAATTGCAGGATACGCTGGAAGCGGCAGGCGACAAATTGCAGGCTAATCTGTTGCGCATTCAGGATGCGACGATGACCCATGACGATCTGCATTTCGTCGATCGTCTGGTGTTCGATCTGCAGAGCAAACTCGATCGTATTATCAGTTGGGGCCAGCAATCCATCGACTTGTGGATTGGCTACGACCGCCACGTACACAAATTTATTCGTACCGCGATCGATATGGATAAAAACCGCGTCTTTGCTCAGCGGTTACGTCAGTCGGTACAAACCTATTTTGATGAACGGCGGGCGCTAACTTATGCCAATGCCGATCGTCTGCTGGATATGCGTGACGAAGAGATGGCACTGCGCGATGAAGAAGTGACTGGGGAACTTCCTGAGGATCTGGAATACGAAGAGTTTAACGAGATCCGCGAACAGCTGGCGGCGATCATCGAAGAACAACTTGCCGTGTACAAAACCAGACAAGTGCCGCTGGATCTTGGTCTGGTGGTACGCGAATATCTGTCACAGTATCCGCGTGCACGTCACTTTGACGTTGCGCGTATTGTTATTGATACCTGACGCAACGTCTGCGAATTCCTGCAGTA','plasmid')
 		# fixed: DNA('TGACTGCCGTTCATGGTGAGATGAGTGAAGGCGAGCTGGTGGATGCATTCCGCCATGTGAGTGATGCGTTTGAGCAAACCAGCGAAACCATCGGCGTGCGCGCCAATAACGCGATCAACGACATGGTGCGTCAACGTCTGCTGAACCGCTTTACCAGCGAGCAGGCGGAAGGGAACGCAATTTACCGTCTGACGCCGCTCGGCATCGGCATTACTGACTACNNNATCCGTCAGCGCGAGTTTTCTACGCTGCGTCTTTCTATGCAGTTGTCGATTGTGGCGGGTGAGCTCAAACGCGCAGCAGATGCCGCCGAAGAGGGCGGTGATGAATTTCACTGGCACCGTAATGTCTATGCGCCACTGAAATATTCGGTAGCAGAAATTTTCGACAGTATCGACCTGACGCAACGTCTGATGGACGAACAGCAGCAGCAGGTGAAGGACGATATCGCCCAGTTGCTGAACAAAGACTGGCGGGCGGCGATTTCCAGCTGGATCCTGAATTGTTGCTTTCGGAAACTTCCGGAACGCTGCGTGAATTGCAGGATACGCTGGAAGCGGCAGGCGACAAATTGCAGGCTAATCTGTTGCGCATTCAGGATGCGACGATGACCCATGACGATCTGCATTTCGTCGATCGTCTGGTGTTCGATCTGCAGAGCAAACTCGATCGTATTATCAGTTGGGGCCAGCAATCCATCGACTTGTGGATTGGCTACGACCGCCACGTACACAAATTTATTCGTACCGCGATCGATATGGATAAAAACCGCGTCTTTGCTCAGCGGTTACGTCAGTCGGTACAAACCTATTTTGATGAACGGCGGGCGCTAACTTATGCCAATGCCGATCGTCTGCTGGATATGCGTGACGAAGAGATGGCACTGCGCGATGAAGAAGTGACTGGGGAACTTCCTGAGGATCTGGAATACGAAGAGTTTAACGAGATCCGCGAACAGCTGGCGGCGATCATCGAAGAACAACTTGCCGTGTACAAAACCAGACAAGTGCCGCTGGATCTTGGTCTGGTGGTACGCGAATATCTGTCACAGTATCCGCGTGCACGTCACTTTGACGTTGCGCGTATTGTTATTGATACCTGACGCAACGTCTGCGAATTCCTGCAGTA','PCR product')
 		# fixed: DNA('GATGACTGAATTCTCATGGTGAGATGAGTGAAGGCGAGCTGGTGGATGCATTCCGCCATGTGAGTGATGCGTTTGAGCAAACCAGCGAAACCATCGGCGTGCGCGCCAATAACGCGATCAACGACATGGTGCGTCAACGTCTGCTGAACCGCTTTACCAGCGAGCAGGCGGAAGGGAACGCAATTTACCGTCTGACGCCGCTCGGCATCGGCATTACTGACTACNNNATCCGTCAGCGCGAGTTTTCTACGCTGCGTCTTTCTATGCAGTTGTCGATTGTGGCGGGTGAGCTCAAACGCGCAGCAGATGCCGCCGAAGAGGGCGGTGATGAATTTCACTGGCACCGTAATGTCTATGCGCCACTGAAATATTCGGTAGCAGAAATTTTCGACAGTATCGACCTGACGCAACGTCTGATGGACGAACAGCAGCAGCAGGTGAAGGACGATATCGCCCAGTTGCTGAACAAAGACTGGCGGGCGGCGATTTCCAGCTGGATCCTGAATTGTTGCTTTCGGAAACTTCCGGAACGCTGCGTGAATTGCAGGATACGCTGGAAGCGGCAGGCGACAAATTGCAGGCTAATCTGTTGCGCATTCAGGATGCGACGATGACCCATGACGATCTGCATTTCGTCGATCGTCTGGTGTTCGATCTGCAGAGCAAACTCGATCGTATTATCAGTTGGGGCCAGCAATCCATCGACTTGTGGATTGGCTACGACCGCCACGTACACAAATTTATTCGTACCGCGATCGATATGGATAAAAACCGCGTCTTTGCTCAGCGGTTACGTCAGTCGGTACAAACCTATTTTGATGAACGGCGGGCGCTAACTTATGCCAATGCCGATCGTCTGCTGGATATGCGTGACGAAGAGATGGCACTGCGCGATGAAGAAGTGACTGGGGAACTTCCTGAGGATCTGGAATACGAAGAGTTTAACGAGATCCGCGAACAGCTGGCGGCGATCATCGAAGAACAACTTGCCGTGTACAAAACCAGACAAGTGCCGCTGGATCTTGGTCTGGTGGTACGCGAATATCTGTCACAGTATCCGCGTGCACGTCACTTTGACGTTGCGCGTATTGTTATTGATACCTGACGCAACGTCTGCGAATTCCTGCAGTA', 'plasmid')
-	print 'Input DNA ('+InputDNA.topology+'): '+InputDNA.sequence
+	# print 'Input DNA ('+InputDNA.topology+'): '+InputDNA.sequence
 	(indices, frags, sites, totalLength) = ([], [], "", len(InputDNA.sequence)) # Initialization
 	if InputDNA.topology == "linear":	
 		# Initialize indices array with start and end indices of the linear fragment
@@ -481,7 +481,12 @@ def Digest(InputDNA, Enzymes):
 			digEnd = digEnd + len(nextEnzyme.alpha_only_site)
 		# Loop around fragment case for circular InputDNA's
 		if digEnd > 0 and currentStart > 0 and digEnd < currentStart and InputDNA.topology == 'circular':
-			digested = DNA(InputDNA.sequence[currentStart:]+InputDNA.sequence[:digEnd],'digest')
+			if n == -1:
+				digested = DNA(InputDNA.sequence[currentStart:]+InputDNA.sequence[:digEnd],'digest')
+			else:
+				# digested = DNA(InputDNA.sequence[digEnd:currentStart],'digest')
+				print 'WARNING: restriction sites for '+currentTuple[3].name+' ('+str(currentTuple[0])+','+str(currentTuple[1])+') and '+nextTuple[3].name+' ('+str(nextTuple[0])+','+str(nextTuple[1])+') contain mutually interfering overhangs -- fragment discarded.'
+				continue
 		else:
 			digested = DNA(InputDNA.sequence[currentStart:digEnd],'digest')
 		# Adjust top and bottom overhang values based on the orientation of the restriction site
@@ -504,9 +509,9 @@ def Digest(InputDNA, Enzymes):
 				digested.bottomLeftOverhang = Overhang(Complement(InputDNA.sequence[currentStart-difference:]+InputDNA.sequence[:currentStart]))
 			else:
 				digested.bottomLeftOverhang = Overhang(Complement(InputDNA.sequence[currentStart-difference:currentStart]))
-		print 'Fragment: '+digested.sequence
-		print 'Fragment.TLO: '+ digested.topLeftOverhang.sequence + " ("+str(currentStart-difference)+","+str(currentStart)+")"
-		print 'Fragment.BLO: '+ digested.bottomLeftOverhang.sequence + " ("+str(currentStart-difference)+","+str(currentStart)+")"
+		# print 'Fragment: '+digested.sequence
+		# print 'Fragment.TLO: '+ digested.topLeftOverhang.sequence + " ("+str(currentStart-difference)+","+str(currentStart)+")"
+		# print 'Fragment.BLO: '+ digested.bottomLeftOverhang.sequence + " ("+str(currentStart-difference)+","+str(currentStart)+")"
 		# Adjust top and bottom overhang values based on the orientation of the restriction site
 		if direction == "sense":
 			(TO, BO) = (NTO, NBO)
@@ -531,8 +536,8 @@ def Digest(InputDNA, Enzymes):
 			else:
 				digested.topRightOverhang = Overhang(InputDNA.sequence[digEnd:digDiff])
 			digested.bottomRightOverhang = Overhang('')
-		print 'Fragment.TRO: '+ digested.topRightOverhang.sequence + " ("+str(digEnd)+","+str(digDiff)+")"
-		print 'Fragment.BRO: '+ digested.bottomRightOverhang.sequence + " ("+str(digEnd)+","+str(digDiff)+")"
+		# print 'Fragment.TRO: '+ digested.topRightOverhang.sequence + " ("+str(digEnd)+","+str(digDiff)+")"
+		# print 'Fragment.BRO: '+ digested.bottomRightOverhang.sequence + " ("+str(digEnd)+","+str(digDiff)+")"
 		# Discard small fragments
 		# TODO: what is the right length for this? For a zymo we will discard all small frags, but without Zymo not clear what is best
 		if len(digested.sequence) < 4:
@@ -575,6 +580,7 @@ class DNA(object):
 		self.topRightOverhang = ""
 		self.bottomRightOverhang = ""
 		#PCR product, miniprep, genomic DNA
+		self.DNAclass = DNAclass
 		self.provenance = ""
 		#Here is the linked list references for building up action-chains
 		# an action chain would be something like do PCR on day 1, do transformation on day 2, etc
@@ -597,6 +603,37 @@ class DNA(object):
 		# TTATCG...[1034bp]...GGAA
 		#   ||||              ||||
 		#   TAGC..............CCTTAA
+		if self.DNAclass == 'digest':
+			(TL,TR,BL,BR) = SetFlags(self)
+			if len(self.sequence) > 8:
+				trExtra = ''
+				brExtra = ''
+				if TR:
+					trExtra = self.topRightOverhang.sequence
+				if BR:
+					brExtra = self.bottomRightOverhang.sequence
+				print "\t"+self.topLeftOverhang.sequence+' '*len(self.bottomLeftOverhang.sequence)+self.sequence[:4]+'.'*3+'['+str(len(self.sequence)-8)+'bp]'+'.'*3+self.sequence[len(self.sequence)-4:]+trExtra
+				print "\t"+' '*len(self.topLeftOverhang.sequence)+'|'*4+' '*(10+len(str(len(self.sequence)-8)))+'|'*4
+				print "\t"+' '*len(self.topLeftOverhang.sequence)+self.bottomLeftOverhang.sequence+reverseComplement(self.sequence[:4])+'.'*(10+len(str(len(self.sequence)-8)))+reverseComplement(self.sequence[len(self.sequence)-4:])+brExtra
+			else:
+				trExtra = ''
+				brExtra = ''
+				if TR:
+					trExtra = self.topRightOverhang.sequence
+				if BR:
+					brExtra = self.bottomRightOverhang.sequence
+				print "\t"+self.topLeftOverhang.sequence+' '*len(self.bottomLeftOverhang.sequence)+self.sequence+trExtra
+				print "\t"+' '*len(self.topLeftOverhang.sequence)+'|'*len(self.sequence)
+				print "\t"+' '*len(self.topLeftOverhang.sequence)+self.bottomLeftOverhang.sequence+reverseComplement(self.sequence)+brExtra
+		else:
+			if len(self.sequence) > 8:
+				print "\t"+self.sequence[:4]+'.'*3+'['+str(len(self.sequence)-8)+'bp]'+'.'*3+self.sequence[len(self.sequence)-4:]
+				print "\t"+'|'*4+' '*(10+len(str(len(self.sequence)-8)))+'|'*4
+				print "\t"+reverseComplement(self.sequence[:4])+'.'*(10+len(str(len(self.sequence)-8)))+reverseComplement(self.sequence[len(self.sequence)-4:])
+			else:
+				print "\t"+self.sequence
+				print "\t"+'|'*len(self.sequence)
+				print "\t"+reverseComplement(self.sequence)
 		return 0
 	
 #taken from BioPython
@@ -739,13 +776,29 @@ def FindDistinguishingEnzyme(list_of_dnas):
 def FindDistEnz():
 	return FindDistinguishingEnzyme(list_of_dnas)
 
+def SetFlags(frag):
+	(TL,TR,BL,BR) = (0,0,0,0)
+	if frag.topLeftOverhang.sequence != '':
+		TL = 1
+	if frag.topRightOverhang.sequence != '':
+		TR = 1
+	if frag.bottomLeftOverhang.sequence != '':
+		BL = 1
+	if frag.bottomRightOverhang.sequence != '':
+		BR = 1
+	return (TL,TR,BL,BR)
+
 #accepts list of DNA, outputs list of DNA
 def Ligate(inputDNAs):
 	products = []
 	# self ligation
 	for fragment in inputDNAs:
-		if fragment.topology == 'circular':
-			print 'Invalid input molecule removed -- only linear digest fragments accepted.'
+		(TL,TR,BL,BR) = SetFlags(fragment)
+		if fragment.DNAclass != 'digest':
+			print 'WARNING: Invalid input molecule removed -- ligation input DNA objects must be of class \'digest\'.'
+			inputDNAs.remove(fragment)
+		elif TL+TR+BL+BR == 1 or TL+TR+BL+BR == 0:
+			print 'WARNING: Invalid input molecule removed -- blunt end ligation inputs disallowed'
 			inputDNAs.remove(fragment)
 		if fragment.topLeftOverhang.sequence != '':
 			if fragment.topLeftOverhang.sequence.lower() == Complement(fragment.bottomRightOverhang.sequence.lower()):
@@ -753,13 +806,59 @@ def Ligate(inputDNAs):
 		elif fragment.bottomLeftOverhang.sequence != '':
 			if fragment.topLeftOverhang.sequence.lower() == Complement(fragment.topRightOverhang.sequence.lower()):
 				products.append(DNA(fragment.sequence+fragment.topRightOverhang.sequence,'plasmid'))
-	# TODO: pairwise ligation
-	# for fragOne in inputDNAs:
-	# 	for fragTwo in inputDNAs:
-	# There is a better way to this for sure...
-	# 		if fragOne.topLeftOverhang.sequence != '' and fragOne.bottomRightOverhang.sequence  != '' and fragTwo.topLeftOverhang.sequence  != '' and fragTwo.bottomRightOverhang.sequence != '':
-	# 			if fragOne.topLeftOverhang.sequence.lower() == Complement(fragTwo.bottomRightOverhang.sequence.lower()) and fragTwo.topLeftOverhang.sequence.lower() == Complement(fragOne.bottomRightOverhang.sequence.lower()):
-	# 				products.append(DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence,'plasmid'))
+	if len(inputDNAs) == 1:
+		return products
+	i = 0
+	while i < len(inputDNAs):
+		fragOne = inputDNAs[i]
+		j = i
+		while j < len(inputDNAs):
+			fragTwo = inputDNAs[j]
+			(LTL,LTR,LBL,LBR) = SetFlags(fragOne)
+			(RTL,RTR,RBL,RBR) = SetFlags(fragTwo)
+			# first3 is the number of 3' overhangs for the left fragment, and so on for the other three classifiers
+			(first3, first5, second3, second5) = (LTR + LBL, LBR + LTL, RTR + RBL, RBR + RTL)
+			if first3 == 2:
+				if fragOne.topRightOverhang.sequence.upper() == Complement(fragTwo.bottomLeftOverhang.sequence).upper():
+					if fragOne.bottomLeftOverhang.sequence.upper() == Complement(fragTwo.topRightOverhang.sequence).upper():
+						products.append(DNA(fragOne.sequence+fragOne.topRightOverhang.sequence+fragTwo.sequence+fragTwo.topRightOverhang.sequence,'plasmid'))
+				if fragOne.topRightOverhang.sequence.upper() == Complement(fragTwo.topRightOverhang.sequence).upper():
+					if fragOne.bottomLeftOverhang.sequence.upper() == Complement(fragTwo.bottomLeftOverhang.sequence).upper():
+						products.append(DNA(fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence)+reverseComplement(fragTwo.bottomLeftOverhang.sequence),'plasmid'))
+			elif first3 == 1:
+				if LTR:
+					# then you know it must have LTL
+					if RTR:
+						# then, if it is to ligate, it must have compatible RTL
+						if fragOne.topRightOverhang.sequence.upper() == Complement(fragTwo.topRightOverhang.sequence).upper():
+							if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.topLeftOverhang.sequence).upper():
+								products.append(DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence),'plasmid'))
+					else:
+						# to ligate, it must have RBL and RBR
+						if fragOne.topRightOverhang.sequence.upper() == Complement(fragTwo.bottomLeftOverhang.sequence).upper():
+							if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.bottomRightOverhang.sequence).upper():
+								products.append(DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragOne.topRightOverhang.sequence+fragTwo.sequence,'plasmid'))
+				else:
+					# you know it has LBL as its 3 and LBR as its 5
+					if RTR:
+					# then, if it is to ligate, it must have compatible RTL
+						if fragTwo.topRightOverhang.sequence.upper() == reverseComplement(fragOne.bottomLeftOverhang.sequence).upper():
+							if fragTwo.topLeftOverhang.sequence.upper() == Complement(fragOne.topLeftOverhang.sequence).upper():
+								products.append(DNA(fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence+fragTwo.topRightOverhang.sequence,'plasmid'))
+					else:
+						# to ligate, it must have RBL and RBR
+						if fragOne.bottomRightOverhang.sequence.upper() == reverseComplement(fragTwo.bottomRightOverhang.sequence).upper():
+							if fragOne.bottomLeftOverhang.sequence.upper() == reverseComplement(fragTwo.bottomLeftOverhang.sequence).upper():
+								products.append(DNA(Complement(fragOne.bottomLeftOverhang.sequence)+fragOne.sequence+Complement(fragOne.bottomRightOverhang.sequence)+fragTwo.sequence,'plasmid'))
+			else:
+				if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.bottomRightOverhang.sequence).upper():
+					if fragOne.bottomRightOverhang.sequence.upper() == Complement(fragTwo.topLeftOverhang.sequence).upper():
+						products.append(DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence,'plasmid'))
+				if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.topLeftOverhang.sequence).upper():
+					if fragOne.bottomRightOverhang.sequence.upper() == Complement(fragTwo.bottomRightOverhang.sequence.upper()):
+						products.append(DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+reverseComplement(fragTwo.sequence)+reverseComplement(fragTwo.topLeftOverhang.sequence),'plasmid'))		
+			j = j + 1
+		i = i + 1
 	return products
 
 
