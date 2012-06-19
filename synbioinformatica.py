@@ -4,8 +4,9 @@
 import sys, random, re, math
 from decimal import *
 
-
-# TODO: hashing and recognition of redundant digest / ligation products? or some sort of weighting based on species abundance?
+# TODO: DNA cloning function for making zymo and gelpurify products
+# TODO: context-specific warnings + DNA names
+# TODO: hashing and recognition of redundant digest / ligation products
 # TODO: AssemblyTree nodes and class structure
 # TODO: for PCR, identification of primers on the edge of a circular sequence
 
@@ -149,6 +150,8 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
 	template = templateDNA.sequence + '$'
 	primer_1 = primer1DNA.sequence + '$'
 	primer_2 = primer2DNA.sequence + '$'
+	(fwdTM, revTM) = (0,0)
+	inputTuple = (primer1DNA, primer2DNA, templateDNA)
 	try:
 		indices = [0,0,0,0,0,0]		# List for storing primer annealing region start/stop indices and strand association
 		counter = 0
@@ -236,11 +239,13 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
 			fwdEnd = indices[1]
 			revStart = indices[3]
 			revEnd = indices[4]
+			fwdTM = primerTm(template[fwdStart:fwdEnd])
+			revTM = primerTm(template[revStart:revEnd])
 			if fwdStart < revStart and fwdEnd < revEnd:
-				return DNA(leftStub+template[fwdStart:revEnd]+rightStub,'PCR product')
+				parent = DNA(leftStub+template[fwdStart:revEnd]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
 			else:
 				if templateDNA.topology == 'circular':	# circular template is exception to the fwdStart < revStart and fwdEnd < revEnd rule
-					return DNA(leftStub+template[fwdStart:len(template)-1]+template[:revStart]+rightStub,'PCR product')
+					parent = DNA(leftStub+template[fwdStart:len(template)-1]+template[:revStart]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
 				else:
 					raise PrimerError((primer1DNA.sequence, primer2DNA.sequence),template,'Forward primer beginning and ending indices must be before those of the reverse:')
 		elif indices[2] == 'rev':
@@ -248,19 +253,25 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
 			fwdEnd = indices[4]
 			revStart = indices[0]
 			revEnd = indices[1]
+			fwdTM = primerTm(template[fwdStart:fwdEnd])
+			revTM = primerTm(template[revStart:revEnd])
 			if fwdStart < revStart and fwdEnd < revEnd:
-				return DNA(leftStub+template[fwdStart:revEnd]+rightStub,'PCR product')
+				parent = DNA(leftStub+template[fwdStart:revEnd]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
 			else:
 				if templateDNA.topology == 'circular':
-					return DNA(leftStub+template[fwdStart:len(template)-1]+template[:revStart]+rightStub,'PCR product')
+					parent = DNA(leftStub+template[fwdStart:len(template)-1]+template[:revStart]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
 				else:
 					raise PrimerError((primer1DNA.sequence, primer2DNA.sequence),template,'Forward primer beginning and ending indices must be before those of the reverse:')
+		for child in inputTuple:
+			child.addParent(parent)
+		parent.setChildren(inputTuple)
+		thermoCycle = str(int(round(len(parent.sequence)/1000+0.5)))+'K'+str(int(round(max(fwdTM,revTM))))
+		parent.instructions = thermoCycle+' PCR template '+templateDNA.name+' with primers '+primer1DNA.name+', '+primer2DNA.name
+		return parent
 	except PrimerError as error:
 		print 'EXCEPTION: '+ error.msg
 		print 'primer: ' 
 		print error.primer
-		#print 'template: '
-		#print error.template
 		sys.exit()
 
 # Note: reverseComplement() is case preserving
@@ -386,6 +397,12 @@ def getDhHash():
 
 def Digest(InputDNA, Enzymes):
 	(indices, frags, sites, totalLength) = ([], [], "", len(InputDNA.sequence)) # Initialization
+	enzNames = ''
+	incubationTemp = 0
+	for enzyme in Enzymes:
+		enzNames = enzNames+enzyme.name+', '
+		incubationTemp = max(incubationTemp,enzyme.incubate_temp)
+	enzNames = enzNames[:-2]
 	if InputDNA.topology == "linear":	
 		# Initialize indices array with start and end indices of the linear fragment
 			# Add dummy REase to avoid null pointers
@@ -477,13 +494,12 @@ def Digest(InputDNA, Enzymes):
 		# Loop around fragment case for circular InputDNA's
 		if digEnd > 0 and currentStart > 0 and digEnd < currentStart and InputDNA.topology == 'circular':
 			if n == -1:
-				digested = DNA(InputDNA.sequence[currentStart:]+InputDNA.sequence[:digEnd],'digest')
+				digested = DNA(InputDNA.sequence[currentStart:]+InputDNA.sequence[:digEnd],'digest','Digest of '+InputDNA.name+' with '+enzNames)
 			else:
-				# digested = DNA(InputDNA.sequence[digEnd:currentStart],'digest')
 				print 'WARNING: restriction sites for '+currentTuple[3].name+' ('+str(currentTuple[0])+','+str(currentTuple[1])+') and '+nextTuple[3].name+' ('+str(nextTuple[0])+','+str(nextTuple[1])+') contain mutually interfering overhangs -- fragment discarded.'
 				continue
 		else:
-			digested = DNA(InputDNA.sequence[currentStart:digEnd],'digest')
+			digested = DNA(InputDNA.sequence[currentStart:digEnd],'digest','Digest of '+InputDNA.name+' with '+enzNames)
 		# Adjust top and bottom overhang values based on the orientation of the restriction site
 		if direction == "sense":
 			(TO, BO) = (CTO, CBO)
@@ -535,6 +551,10 @@ def Digest(InputDNA, Enzymes):
 			# frags.append((currentStart,digested))
 			frags.append(digested)
 		# frags.sort()
+	for frag in frags:
+		frag.setChildren((InputDNA, ))
+		InputDNA.addParent(frag)
+		frag.instructions = 'Digest ('+InputDNA.name+') with '+enzNames+' at '+incubationTemp+'C in [EMPTY BUFFER] for 1 hour.'
 	return frags
 
 def revcomp(string):
@@ -549,7 +569,7 @@ class Overhang(object):
 
 class DNA(object):
 	#for linear DNAs, this string should include the entire sequence (5' and 3' overhangs included
-	def __init__(self, seq="",DNAclass=""):
+	def __init__(self, seq="",DNAclass="", name=""):
 		self.sequence = seq
 		self.length = len(seq)
 		notDNA = re.compile('([^gatcrymkswhbvdn])')
@@ -560,10 +580,10 @@ class DNA(object):
 			isnotDNA = True
 		if(isnotDNA):
 			raise Exception(exceptionText)
-		self.name = "pbca1256" #would be pbca1256 for vectors or pbca1256-Bth8199 for plasmids
+		self.name = name #would be pbca1256 for vectors or pbca1256-Bth8199 for plasmids
 		self.description = "SpecR pUC" #this is for humans to read
 		self.dam_methylated = True
-		self.overhang = "circular" #blunt, 3', 5', circular... should be a class in itself?
+		# self.overhang = "circular" #blunt, 3', 5', circular... should be a class in itself?
 		self.topLeftOverhang = ""
 		self.bottomLeftOverhang = ""
 		self.topRightOverhang = ""
@@ -571,6 +591,9 @@ class DNA(object):
 		#PCR product, miniprep, genomic DNA
 		self.DNAclass = DNAclass
 		self.provenance = ""
+		self.parents = []
+		self.children = ()
+		self.instructions = ""
 		#Here is the linked list references for building up action-chains
 		# an action chain would be something like do PCR on day 1, do transformation on day 2, etc
 		self.head = None
@@ -584,6 +607,10 @@ class DNA(object):
 	def reversecomp(self):
 		return revcomp(self.sequence) #reverses string
 		#code to handle the overhangs & other object attributes
+	def addParent(self, DNA):
+		self.parents.append(DNA)
+	def setChildren(self, inputDNAs):
+		self.children = inputDNAs
 	def find(self, string):
 		return 0
 	def prettyPrint(self):
@@ -795,11 +822,19 @@ def Ligate(inputDNAs):
 			inputDNAs.remove(fragment)
 		if fragment.topLeftOverhang.sequence != '':
 			if fragment.topLeftOverhang.sequence.lower() == Complement(fragment.bottomRightOverhang.sequence.lower()):
-				products.append(DNA(fragment.topLeftOverhang.sequence+fragment.sequence,'plasmid'))
+				ligated = DNA(fragment.topLeftOverhang.sequence+fragment.sequence,'plasmid',fragment.name+' self-ligation')
+				ligated.setChildren((fragment, ))
+				fragment.addParent(ligated)
+				ligated.instructions = 'Self-ligate ('+fragment.name+') with DNA ligase for 30 minutes at room-temperature.'
+				products.append(ligated)
 		elif fragment.bottomLeftOverhang.sequence != '':
 			if fragment.topLeftOverhang.sequence.lower() == Complement(fragment.topRightOverhang.sequence.lower()):
-				products.append(DNA(fragment.sequence+fragment.topRightOverhang.sequence,'plasmid'))
-	if len(inputDNAs) == 1:
+				ligated = DNA(fragment.sequence+fragment.topRightOverhang.sequence,'plasmid',fragment.name+' self-ligation')
+				ligated.setChildren((fragment, ))
+				fragment.addParent(ligated)
+				ligated.instructions = 'Self-ligate ('+fragment.name+') with DNA ligase for 30 minutes at room-temperature.'
+				products.append(ligated)
+	if len(products) > 0 or len(inputDNAs) == 1:
 		return products
 	i = 0
 	while i < len(inputDNAs):
@@ -814,10 +849,20 @@ def Ligate(inputDNAs):
 			if first3 == 2:
 				if fragOne.topRightOverhang.sequence.upper() == Complement(fragTwo.bottomLeftOverhang.sequence).upper():
 					if fragOne.bottomLeftOverhang.sequence.upper() == Complement(fragTwo.topRightOverhang.sequence).upper():
-						products.append(DNA(fragOne.sequence+fragOne.topRightOverhang.sequence+fragTwo.sequence+fragTwo.topRightOverhang.sequence,'plasmid'))
+						ligated = DNA(fragOne.sequence+fragOne.topRightOverhang.sequence+fragTwo.sequence+fragTwo.topRightOverhang.sequence,'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
+						ligated.setChildren((fragOne, fragTwo))
+						fragOne.addParent(ligated)
+						fragTwo.addParent(ligated)
+						ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
+						products.append(ligated)
 				if fragOne.topRightOverhang.sequence.upper() == Complement(fragTwo.topRightOverhang.sequence).upper():
 					if fragOne.bottomLeftOverhang.sequence.upper() == Complement(fragTwo.bottomLeftOverhang.sequence).upper():
-						products.append(DNA(fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence)+reverseComplement(fragTwo.bottomLeftOverhang.sequence),'plasmid'))
+						ligated = DNA(fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence)+reverseComplement(fragTwo.bottomLeftOverhang.sequence),'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
+						ligated.setChildren((fragOne, fragTwo))
+						fragOne.addParent(ligated)
+						fragTwo.addParent(ligated)
+						ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
+						products.append(ligated)
 			elif first3 == 1:
 				if LTR:
 					# then you know it must have LTL
@@ -825,31 +870,61 @@ def Ligate(inputDNAs):
 						# then, if it is to ligate, it must have compatible RTL
 						if fragOne.topRightOverhang.sequence.upper() == Complement(fragTwo.topRightOverhang.sequence).upper():
 							if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.topLeftOverhang.sequence).upper():
-								products.append(DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence),'plasmid'))
+								ligated = DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence),'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
+								ligated.setChildren((fragOne, fragTwo))
+								fragOne.addParent(ligated)
+								fragTwo.addParent(ligated)
+								ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
+								products.append(ligated)
 					else:
 						# to ligate, it must have RBL and RBR
 						if fragOne.topRightOverhang.sequence.upper() == Complement(fragTwo.bottomLeftOverhang.sequence).upper():
 							if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.bottomRightOverhang.sequence).upper():
-								products.append(DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragOne.topRightOverhang.sequence+fragTwo.sequence,'plasmid'))
+								ligated = DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragOne.topRightOverhang.sequence+fragTwo.sequence,'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
+								ligated.setChildren((fragOne, fragTwo))
+								fragOne.addParent(ligated)
+								fragTwo.addParent(ligated)
+								ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
+								products.append(ligated)
 				else:
 					# you know it has LBL as its 3 and LBR as its 5
 					if RTR:
 					# then, if it is to ligate, it must have compatible RTL
 						if fragTwo.topRightOverhang.sequence.upper() == reverseComplement(fragOne.bottomLeftOverhang.sequence).upper():
 							if fragTwo.topLeftOverhang.sequence.upper() == Complement(fragOne.topLeftOverhang.sequence).upper():
-								products.append(DNA(fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence+fragTwo.topRightOverhang.sequence,'plasmid'))
+								ligated = DNA(fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence+fragTwo.topRightOverhang.sequence,'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
+								ligated.setChildren((fragOne, fragTwo))
+								fragOne.addParent(ligated)
+								fragTwo.addParent(ligated)
+								ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
+								products.append(ligated)
 					else:
 						# to ligate, it must have RBL and RBR
 						if fragOne.bottomRightOverhang.sequence.upper() == reverseComplement(fragTwo.bottomRightOverhang.sequence).upper():
 							if fragOne.bottomLeftOverhang.sequence.upper() == reverseComplement(fragTwo.bottomLeftOverhang.sequence).upper():
-								products.append(DNA(Complement(fragOne.bottomLeftOverhang.sequence)+fragOne.sequence+Complement(fragOne.bottomRightOverhang.sequence)+fragTwo.sequence,'plasmid'))
+								ligated = DNA(Complement(fragOne.bottomLeftOverhang.sequence)+fragOne.sequence+Complement(fragOne.bottomRightOverhang.sequence)+fragTwo.sequence,'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
+								ligated.setChildren((fragOne, fragTwo))
+								fragOne.addParent(ligated)
+								fragTwo.addParent(ligated)
+								ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
+								products.append(ligated)
 			else:
 				if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.bottomRightOverhang.sequence).upper():
 					if fragOne.bottomRightOverhang.sequence.upper() == Complement(fragTwo.topLeftOverhang.sequence).upper():
-						products.append(DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence,'plasmid'))
+						ligated = DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence,'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
+						ligated.setChildren((fragOne, fragTwo))
+						fragOne.addParent(ligated)
+						fragTwo.addParent(ligated)
+						ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
+						products.append(ligated)
 				if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.topLeftOverhang.sequence).upper():
 					if fragOne.bottomRightOverhang.sequence.upper() == Complement(fragTwo.bottomRightOverhang.sequence.upper()):
-						products.append(DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+reverseComplement(fragTwo.sequence)+reverseComplement(fragTwo.topLeftOverhang.sequence),'plasmid'))		
+						ligated = DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+reverseComplement(fragTwo.sequence)+reverseComplement(fragTwo.topLeftOverhang.sequence),'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')		
+						ligated.setChildren((fragOne, fragTwo))
+						fragOne.addParent(ligated)
+						fragTwo.addParent(ligated)
+						ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
+						products.append(ligated)
 			j = j + 1
 		i = i + 1
 	return products
@@ -875,7 +950,6 @@ def ZymoPurify(inputDNAs):
 		outputBands.append(currentTuple[1])
 	return outputBands
 
-# TODO: Find more exact threshold (currently at 15)?
 def ShortFragmentCleanup(inputDNAs):
 	if len(inputDNAs) == 0:
 		print 'WARNING: ShortFragmentCleanup function passed empty input list -- will return empty output'
@@ -888,12 +962,12 @@ def ShortFragmentCleanup(inputDNAs):
 	sizeTuples.sort(reverse=True)
 	currentTuple = sizeTuples[0]
 	currentSize = currentTuple[0]
-	while currentSize > 15 and len(sizeTuples) > 1:
+	while currentSize > 50 and len(sizeTuples) > 1:
 		outputBands.append(currentTuple[1])
 		sizeTuples.pop(0)
 		currentTuple = sizeTuples[0]
 		currentSize = currentTuple[0]
-	if currentSize > 15:
+	if currentSize > 50:
 		outputBands.append(currentTuple[1])
 	return outputBands
 
@@ -1033,7 +1107,7 @@ def HasReplicon(seq):
 		retval.append('pUC')
 	return retval
 class Strain(object):
-	def __init__(self, name="", replication="", resistance="", plasmid=DNA("",'plasmid')):
+	def __init__(self, name="", replication="", resistance="", plasmid=DNA("",'plasmid','transformant')):
 		#pass everything in as a comma separated list
 		self.name = name
 		self.replication = replication.split(",")
@@ -1083,7 +1157,7 @@ def TransformPlateMiniprep(DNAs, strain, selection_antibiotic):
 		print "No DNAs successfully transformed.  DNAs may be linear."
         return 0
 
-yes = DNA('GATCCtaaCTCGAcgtgcaggcttcctcgctcactgactcgctgcgctcggtcgttcggctgcggcgagcggtatcagctcactcaaaggcggtaatCAATTCGACCCAGCTTTCTTGTACAAAGTTGGCATTATAAAAAATAATTGCTCATCAATTTGTTGCAACGAACAGGTCACTATCAGTCAAAATAAAATCATTATTTGCCATCCAGCTGATATCCCCTATAGTGAGTCGTATTACATGGTCATAGCTGTTTCCTGGCAGCTCTGGCCCGTGTCTCAAAATCTCTGATGTTACATTGCACAAGATAAAAATATATCATCATGCCTCCTCTAGACCAGCCAGGACAGAAATGCCTCGACTTCGCTGCTGCCCAAGGTTGCCGGGTGACGCACACCGTGGAAACGGATGAAGGCACGAACCCAGTGGACATAAGCCTGTTCGGTTCGTAAGCTGTAATGCAAGTAGCGTATGCGCTCACGCAACTGGTCCAGAACCTTGACCGAACGCAGCGGTGGTAACGGCGCAGTGGCGGTTTTCATGGCTTGTTATGACTGTTTTTTTGGGGTACAGTCTATGCCTCGGGCATCCAAGCAGCAAGCGCGTTACGCCGTGGGTCGATGTTTGATGTTATGGAGCAGCAACGATGTTACGCAGCAGGGCAGTCGCCCTAAAACAAAGTTAAACATCATGAGGGAAGCGGTGATCGCCGAAGTATCGACTCAACTATCAGAGGTAGTTGGCGTCATCGAGCGCCATCTCGAACCGACGTTGCTGGCCGTACATTTGTACGGCTCCGCAGTGGATGGCGGCCTGAAGCCACACAGTGATATTGATTTGCTGGTTACGGTGACCGTAAGGCTTGATGAAACAACGCGGCGAGCTTTGATCAACGACCTTTTGGAAACTTCGGCTTCCCCTGGAGAGAGCGAGATTCTCCGCGCTGTAGAAGTCACCATTGTTGTGCACGACGACATCATTCCGTGGCGTTATCCAGCTAAGCGCGAACTGCAATTTGGAGAATGGCAGCGCAATGACATTCTTGCAGGTATCTTCGAGCCAGCCACGATCGACATTGATCTGGCTATCTTGCTGACAAAAGCAAGAGAACATAGCGTTGCCTTGGTAGGTCCAGCGGCGGAGGAACTCTTTGATCCGGTTCCTGAACAGGATCTATTTGAGGCGCTAAATGAAACCTTAACGCTATGGAACTCGCCGCCCGACTGGGCTGGCGATGAGCGAAATGTAGTGCTTACGTTGTCCCGCATTTGGTACAGCGCAGTAACCGGCAAAATCGCGCCGAAGGATGTCGCTGCCGACTGGGCAATGGAGCGCCTGCCGGCCCAGTATCAGCCCGTCATACTTGAAGCTAGACAGGCTTATCTTGGACAAGAAGAAGATCGCTTGGCCTCGCGCGCAGATCAGTTGGAAGAATTTGTCCACTACGTGAAAGGCGAGATCACCAAGGTAGTCGGCAAATAACCCTCGAGCCACCCATGACCAAAATCCCTTAACGTGAGTTACGCGTCGTTCCACTGAGCGTCAGACCCCGTAGAAAAGATCAAAGGATCTTCTTGAGATCCTTTTTTTCTGCGCGTAATCTGCTGCTTGCAAACAAAAAAACCACCGCTACCAGCGGTGGTTTGTTTGCCGGATCAAGAGCTACCAACTCTTTTTCCGAAGGTAACTGGCTTCAGCAGAGCGCAGATACCAAATACTGTCCTTCTAGTGTAGCCGTAGTTAGGCCACCACTTCAAGAACTCTGTAGCACCGCCTACATACCTCGCTCTGCTAATCCTGTTACCAGTGGCTGCTGCCAGTGGCGATAAGTCGTGTCTTACCGGGTTGGACTCAAGACGATAGTTACCGGATAAGGCGCAGCGGTCGGGCTGAACGGGGGGTTCGTGCACACAGCCCAGCTTGGAGCGAACGACCTACACCGAACTGAGATACCTACAGCGTGAGCATTGAGAAAGCGCCACGCTTCCCGAAGGGAGAAAGGCGGACAGGTATCCGGTAAGCGGCAGGGTCGGAACAGGAGAGCGCACGAGGGAGCTTCCAGGGGGAAACGCCTGGTATCTTTATAGTCCTGTCGGGTTTCGCCACCTCTGACTTGAGCGTCGATTTTTGTGATGCTCGTCAGGGGGGCGGAGCCTATGGAAAAACGCCAGCAACGCGGCCTTTTTACGGTTCCTGGCCTTTTGCTGGCCTTTTGCTCACATGTTCTTTCCTGCGTTATCCCCTGATTCTGTGGATAACCGTcctaggTGTAAAACGACGGCCAGTCTTAAGCTCGGGCCCCAAATAATGATTTTATTTTGACTGATAGTGACCTGTTCGTTGCAACAAATTGATGAGCAATGCTTTTTTATAATGCCAACTTTGTACAAAAAAGCAGGCTCCGAATTGgtatcacgaggcagaatttcagataaaaaaaatccttagctttcgctaaggatgatttctgGAATTCATGA', 'plasmid')
-pth1601kc = DNA('GATCCtaaCTCGAcgtgcaggcttcctcgctcactgactcgctgcgctcggtcgttcggctgcggcgagcggtatcagctcactcaaaggcggtaatCAATTCGACCCAGCTTTCTTGTACAAAGTGGTTGATCcttacAGATCCcggttatccacagaatcaggggAGGCCTtagaaatattttatctgattaataagatgatcttcttgagatcgttttggtctgcgcgtaatctcttgctctgaaaacgaaaaaaccgccttgcagggcggtttttcgaaggttctctgagctaccaactctttgaaccgaggtaactggcttggaggagcgcagtcaccaaaacttgtcctttcagtttagccttaaccggcgcatgacttcaagactaactcctctaaatcaattaccagtggctgctgccagtggtgcttttgcatgtctttccgggttggactcaagacgatagttaccggataaggcgcagcggtcggactgaacggggggttcgtgcatacagtccagcttggagcgaactgcctacccggaactgagtgtcaggcgtggaatgagacaaacgcggccataacagcggaatgacaccggtaaaccgaaaggcaggaacaggagagcgcacgagggagccgccagggggaaacgcctggtatctttatagtcctgtcgggtttcgccaccactgatttgagcgtcagatttcgtgatgcttgtcaggggggcggagcctatggaaaaacggctttgccgcggccctctcacttccctgttaagtatcttcctggcatcttccaggaaatctccgccccgttcgtaagccatttccgctcgccgcagtcgaacgaccgagcgtagcgagtcagtgagcgaggaagcggaatatatcctgtatcacatattctgctgacgcaccggtgcagccttttttctcctgccacatgaagcacttcactgacaccctcatcagtgccaacatagtaagccagtatacactccgctagcgctgatgtccggcggtgcGCATGCcgttaagggattttggtcatgaACTAGCttgatcgggcacgtaagaggttccaactttcaccataatgaaataagatcactaccgggcgtattttttgagttatcgagattttcaggagctaaggaagctaaaatggagaaaaaaatcactggatataccaccgttgatatatcccaatggcatcgtaaagaacattttgaggcatttcagtcagttgctcaatgtacctataaccagaccgttcagctggatattacggcctttttaaagaccgtaaagaaaaataagcacaagttttatccggcctttattcacattcttgcccgcctgatgaatgctcatccggaatttcgtatggcaatgaaagacggtgagctggtgatatgggatagtgttcacccttgttacaccgttttccatgagcaaactgaaacgttttcatcgctctggagtgaataccacgacgatttccggcagtttctacacatatattcgcaagatgtggcgtgttacggtgaaaacctggcctatttccctaaagggtttattgagaatatgtttttcgtctcagccaatccctgggtgagtttcaccagttttgatttaaacgtggccaatatggacaacttcttcgcccccgttttcaccatgggcaaatattatacgcaaggcgacaaggtgctgatgccgctggcgattcaggttcatcatgccgtttgtgatggcttccatgtcggcagaatgcttaatgaattacaacagtactgcgatgagtggcagggcggggcgtaatttgatatcgagctcgcttggactcctgttgatagatccagtaatgacctcagaactccatctggatttgttcagaacgctcggttgccgccgggcgttttttattggtgagaatccaagcCTGCAGataacttcgtatagcatacattatacgaagttatctcgagctgatccttcaactcagcaaaagttcgatttattcaacaaagccacgttgtgtctcaaaatctctgatgttacattgcacaagataaaaatatatcatcatgaacaataaaactgtctgcttacataaacagtaatacaaggggtgttatgagccatattcaacgggaaacgtcttgctccaggccgcgattaaattccaacatggatgctgatttatatgggtataaatgggctcgcgataatgtcgggcaatcaggtgcgacaatctatcgattgtatgggaagcccgatgcgccagagttgtttctgaaacatggcaaaggtagcgttgccaatgatgttacagatgagatggtcagactaaactggctgacggaatttatgcctcttccgaccatcaagcattttatccgtactcctgatgatgcatggttactcaccactgcgatccccgggaaaacagcattccaggtattagaagaatatcctgattcaggtgaaaatattgttgatgcgctggcagtgttcctgcgccggttgcattcgattcctgtttgtaattgtccttttaacagcgatcgcgtatttcgtctcgctcaggcgcaatcacgaatgaataacggtttggttgatgcgagtgattttgatgacgagcgtaatggctggcctgttgaacaagtctggaaagaaatgcataagcttttgccattctcaccggattcagtcgtcactcatggtgatttctcacttgataaccttatttttgacgaggggaaattaataggttgtattgatgttggacgagtcggaatcgcagaccgataccaggatcttgccatcctatggaactgcctcggtgagttttctccttcattacagaaacggctttttcaaaaatatggtattgataatcctgatatgaataaattgcagtttcatttgatgctcgatgagtttttctaatcagaattggttaattggttgtaacactggcagagcattacgctgacttgacggGaattgCCATTATCAACAAGTTTGTACAAAAAAGCAGGCTCCGAATTGgtatcacgaggcagaatttcagataaaaaaaatccttagctttcgctaaggatgatttctgGAATTCATGA', 'plasmid')
+yes = DNA('GATCCtaaCTCGAcgtgcaggcttcctcgctcactgactcgctgcgctcggtcgttcggctgcggcgagcggtatcagctcactcaaaggcggtaatCAATTCGACCCAGCTTTCTTGTACAAAGTTGGCATTATAAAAAATAATTGCTCATCAATTTGTTGCAACGAACAGGTCACTATCAGTCAAAATAAAATCATTATTTGCCATCCAGCTGATATCCCCTATAGTGAGTCGTATTACATGGTCATAGCTGTTTCCTGGCAGCTCTGGCCCGTGTCTCAAAATCTCTGATGTTACATTGCACAAGATAAAAATATATCATCATGCCTCCTCTAGACCAGCCAGGACAGAAATGCCTCGACTTCGCTGCTGCCCAAGGTTGCCGGGTGACGCACACCGTGGAAACGGATGAAGGCACGAACCCAGTGGACATAAGCCTGTTCGGTTCGTAAGCTGTAATGCAAGTAGCGTATGCGCTCACGCAACTGGTCCAGAACCTTGACCGAACGCAGCGGTGGTAACGGCGCAGTGGCGGTTTTCATGGCTTGTTATGACTGTTTTTTTGGGGTACAGTCTATGCCTCGGGCATCCAAGCAGCAAGCGCGTTACGCCGTGGGTCGATGTTTGATGTTATGGAGCAGCAACGATGTTACGCAGCAGGGCAGTCGCCCTAAAACAAAGTTAAACATCATGAGGGAAGCGGTGATCGCCGAAGTATCGACTCAACTATCAGAGGTAGTTGGCGTCATCGAGCGCCATCTCGAACCGACGTTGCTGGCCGTACATTTGTACGGCTCCGCAGTGGATGGCGGCCTGAAGCCACACAGTGATATTGATTTGCTGGTTACGGTGACCGTAAGGCTTGATGAAACAACGCGGCGAGCTTTGATCAACGACCTTTTGGAAACTTCGGCTTCCCCTGGAGAGAGCGAGATTCTCCGCGCTGTAGAAGTCACCATTGTTGTGCACGACGACATCATTCCGTGGCGTTATCCAGCTAAGCGCGAACTGCAATTTGGAGAATGGCAGCGCAATGACATTCTTGCAGGTATCTTCGAGCCAGCCACGATCGACATTGATCTGGCTATCTTGCTGACAAAAGCAAGAGAACATAGCGTTGCCTTGGTAGGTCCAGCGGCGGAGGAACTCTTTGATCCGGTTCCTGAACAGGATCTATTTGAGGCGCTAAATGAAACCTTAACGCTATGGAACTCGCCGCCCGACTGGGCTGGCGATGAGCGAAATGTAGTGCTTACGTTGTCCCGCATTTGGTACAGCGCAGTAACCGGCAAAATCGCGCCGAAGGATGTCGCTGCCGACTGGGCAATGGAGCGCCTGCCGGCCCAGTATCAGCCCGTCATACTTGAAGCTAGACAGGCTTATCTTGGACAAGAAGAAGATCGCTTGGCCTCGCGCGCAGATCAGTTGGAAGAATTTGTCCACTACGTGAAAGGCGAGATCACCAAGGTAGTCGGCAAATAACCCTCGAGCCACCCATGACCAAAATCCCTTAACGTGAGTTACGCGTCGTTCCACTGAGCGTCAGACCCCGTAGAAAAGATCAAAGGATCTTCTTGAGATCCTTTTTTTCTGCGCGTAATCTGCTGCTTGCAAACAAAAAAACCACCGCTACCAGCGGTGGTTTGTTTGCCGGATCAAGAGCTACCAACTCTTTTTCCGAAGGTAACTGGCTTCAGCAGAGCGCAGATACCAAATACTGTCCTTCTAGTGTAGCCGTAGTTAGGCCACCACTTCAAGAACTCTGTAGCACCGCCTACATACCTCGCTCTGCTAATCCTGTTACCAGTGGCTGCTGCCAGTGGCGATAAGTCGTGTCTTACCGGGTTGGACTCAAGACGATAGTTACCGGATAAGGCGCAGCGGTCGGGCTGAACGGGGGGTTCGTGCACACAGCCCAGCTTGGAGCGAACGACCTACACCGAACTGAGATACCTACAGCGTGAGCATTGAGAAAGCGCCACGCTTCCCGAAGGGAGAAAGGCGGACAGGTATCCGGTAAGCGGCAGGGTCGGAACAGGAGAGCGCACGAGGGAGCTTCCAGGGGGAAACGCCTGGTATCTTTATAGTCCTGTCGGGTTTCGCCACCTCTGACTTGAGCGTCGATTTTTGTGATGCTCGTCAGGGGGGCGGAGCCTATGGAAAAACGCCAGCAACGCGGCCTTTTTACGGTTCCTGGCCTTTTGCTGGCCTTTTGCTCACATGTTCTTTCCTGCGTTATCCCCTGATTCTGTGGATAACCGTcctaggTGTAAAACGACGGCCAGTCTTAAGCTCGGGCCCCAAATAATGATTTTATTTTGACTGATAGTGACCTGTTCGTTGCAACAAATTGATGAGCAATGCTTTTTTATAATGCCAACTTTGTACAAAAAAGCAGGCTCCGAATTGgtatcacgaggcagaatttcagataaaaaaaatccttagctttcgctaaggatgatttctgGAATTCATGA', 'plasmid', 'yes Plasmid')
+pth1601kc = DNA('GATCCtaaCTCGAcgtgcaggcttcctcgctcactgactcgctgcgctcggtcgttcggctgcggcgagcggtatcagctcactcaaaggcggtaatCAATTCGACCCAGCTTTCTTGTACAAAGTGGTTGATCcttacAGATCCcggttatccacagaatcaggggAGGCCTtagaaatattttatctgattaataagatgatcttcttgagatcgttttggtctgcgcgtaatctcttgctctgaaaacgaaaaaaccgccttgcagggcggtttttcgaaggttctctgagctaccaactctttgaaccgaggtaactggcttggaggagcgcagtcaccaaaacttgtcctttcagtttagccttaaccggcgcatgacttcaagactaactcctctaaatcaattaccagtggctgctgccagtggtgcttttgcatgtctttccgggttggactcaagacgatagttaccggataaggcgcagcggtcggactgaacggggggttcgtgcatacagtccagcttggagcgaactgcctacccggaactgagtgtcaggcgtggaatgagacaaacgcggccataacagcggaatgacaccggtaaaccgaaaggcaggaacaggagagcgcacgagggagccgccagggggaaacgcctggtatctttatagtcctgtcgggtttcgccaccactgatttgagcgtcagatttcgtgatgcttgtcaggggggcggagcctatggaaaaacggctttgccgcggccctctcacttccctgttaagtatcttcctggcatcttccaggaaatctccgccccgttcgtaagccatttccgctcgccgcagtcgaacgaccgagcgtagcgagtcagtgagcgaggaagcggaatatatcctgtatcacatattctgctgacgcaccggtgcagccttttttctcctgccacatgaagcacttcactgacaccctcatcagtgccaacatagtaagccagtatacactccgctagcgctgatgtccggcggtgcGCATGCcgttaagggattttggtcatgaACTAGCttgatcgggcacgtaagaggttccaactttcaccataatgaaataagatcactaccgggcgtattttttgagttatcgagattttcaggagctaaggaagctaaaatggagaaaaaaatcactggatataccaccgttgatatatcccaatggcatcgtaaagaacattttgaggcatttcagtcagttgctcaatgtacctataaccagaccgttcagctggatattacggcctttttaaagaccgtaaagaaaaataagcacaagttttatccggcctttattcacattcttgcccgcctgatgaatgctcatccggaatttcgtatggcaatgaaagacggtgagctggtgatatgggatagtgttcacccttgttacaccgttttccatgagcaaactgaaacgttttcatcgctctggagtgaataccacgacgatttccggcagtttctacacatatattcgcaagatgtggcgtgttacggtgaaaacctggcctatttccctaaagggtttattgagaatatgtttttcgtctcagccaatccctgggtgagtttcaccagttttgatttaaacgtggccaatatggacaacttcttcgcccccgttttcaccatgggcaaatattatacgcaaggcgacaaggtgctgatgccgctggcgattcaggttcatcatgccgtttgtgatggcttccatgtcggcagaatgcttaatgaattacaacagtactgcgatgagtggcagggcggggcgtaatttgatatcgagctcgcttggactcctgttgatagatccagtaatgacctcagaactccatctggatttgttcagaacgctcggttgccgccgggcgttttttattggtgagaatccaagcCTGCAGataacttcgtatagcatacattatacgaagttatctcgagctgatccttcaactcagcaaaagttcgatttattcaacaaagccacgttgtgtctcaaaatctctgatgttacattgcacaagataaaaatatatcatcatgaacaataaaactgtctgcttacataaacagtaatacaaggggtgttatgagccatattcaacgggaaacgtcttgctccaggccgcgattaaattccaacatggatgctgatttatatgggtataaatgggctcgcgataatgtcgggcaatcaggtgcgacaatctatcgattgtatgggaagcccgatgcgccagagttgtttctgaaacatggcaaaggtagcgttgccaatgatgttacagatgagatggtcagactaaactggctgacggaatttatgcctcttccgaccatcaagcattttatccgtactcctgatgatgcatggttactcaccactgcgatccccgggaaaacagcattccaggtattagaagaatatcctgattcaggtgaaaatattgttgatgcgctggcagtgttcctgcgccggttgcattcgattcctgtttgtaattgtccttttaacagcgatcgcgtatttcgtctcgctcaggcgcaatcacgaatgaataacggtttggttgatgcgagtgattttgatgacgagcgtaatggctggcctgttgaacaagtctggaaagaaatgcataagcttttgccattctcaccggattcagtcgtcactcatggtgatttctcacttgataaccttatttttgacgaggggaaattaataggttgtattgatgttggacgagtcggaatcgcagaccgataccaggatcttgccatcctatggaactgcctcggtgagttttctccttcattacagaaacggctttttcaaaaatatggtattgataatcctgatatgaataaattgcagtttcatttgatgctcgatgagtttttctaatcagaattggttaattggttgtaacactggcagagcattacgctgacttgacggGaattgCCATTATCAACAAGTTTGTACAAAAAAGCAGGCTCCGAATTGgtatcacgaggcagaatttcagataaaaaaaatccttagctttcgctaaggatgatttctgGAATTCATGA', 'plasmid', 'pth1601kc')
 lol = Strain("name", "pUC,R6K,ColE2", "KanR,CmR", yes)
 TransformPlate([yes], lol, "SpecR")
