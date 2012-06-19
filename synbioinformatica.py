@@ -187,7 +187,7 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
 			revMatch = LCS(template.upper(),revcomp.upper()+'$')
 			revTuple = revMatch.LongestCommonSubstring()
 			last = re.compile(revTuple[0], re.IGNORECASE)
-			rev_stub = currentPrimer[len(revTuple[0]):len(currentPrimer)]
+			rev_stub = currentPrimer[0:len(currentPrimer)-len(revTuple[0])-1]
 			lList = last.findall(template)
 			matchCount = 0
 			for match in lList:
