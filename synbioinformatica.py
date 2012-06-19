@@ -4,12 +4,9 @@
 import sys, random, re, math, difflib
 from decimal import *
 
-# TODO: DNA cloning function for making zymo and gelpurify products
 # TODO: context-specific warnings + DNA names
 # TODO: hashing and recognition of redundant digest / ligation products
-# TODO: AssemblyTree nodes and class structure
 # TODO: for PCR, identification of primers on the edge of a circular sequence
-
 
 dna_alphabet = {'A':'A', 'C':'C', 'G':'G', 'T':'T',
                 'R':'AG', 'Y':'CT', 'W':'AT', 'S':'CG', 'M':'AC', 'K':'GT',
@@ -218,27 +215,24 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
 				raise PrimerError(currentPrimer,template,'Primer does not prime in either orientation:') 	# ... or not.
 			if matchedAlready == 1:
 				indices[counter] = fwdTuple[1]
-				counter = counter + 1
+				counter +=  1
 				indices[counter] = fwdTuple[2]
-				counter = counter + 1
+				counter +=  1
 				indices[counter] = 'fwd'
-				counter = counter + 1
+				counter +=  1
 				nextOrientation = 2
 				leftStub = fwd_stub
 			if matchedAlready == 2:
 				indices[counter] = revTuple[1]
-				counter = counter + 1
+				counter += 1
 				indices[counter] = revTuple[2]
-				counter = counter + 1
+				counter +=  1
 				indices[counter] = 'rev'
-				counter = counter + 1
+				counter +=  1
 				nextOrientation = 1
 				rightStub = reverseComplement(rev_stub)
 		if indices[2] == 'fwd':
-			fwdStart = indices[0]
-			fwdEnd = indices[1]
-			revStart = indices[3]
-			revEnd = indices[4]
+			(fwdStart, fwdEnd, revStart, revEnd) = (indices[0], indices[1], indices[3], indices[4])
 			fwdTM = primerTm(template[fwdStart:fwdEnd])
 			revTM = primerTm(template[revStart:revEnd])
 			if fwdStart < revStart and fwdEnd < revEnd:
@@ -249,10 +243,7 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
 				else:
 					raise PrimerError((primer1DNA.sequence, primer2DNA.sequence),template,'Forward primer beginning and ending indices must be before those of the reverse:')
 		elif indices[2] == 'rev':
-			fwdStart = indices[3]
-			fwdEnd = indices[4]
-			revStart = indices[0]
-			revEnd = indices[1]
+			(fwdStart, fwdEnd, revStart, revEnd) = (indices[3], indices[4], indices[0], indices[1])
 			fwdTM = primerTm(template[fwdStart:fwdEnd])
 			revTM = primerTm(template[revStart:revEnd])
 			if fwdStart < revStart and fwdEnd < revEnd:
