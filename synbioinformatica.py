@@ -187,7 +187,7 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
 			revMatch = LCS(template.upper(),revcomp.upper()+'$')
 			revTuple = revMatch.LongestCommonSubstring()
 			last = re.compile(revTuple[0], re.IGNORECASE)
-			rev_stub = currentPrimer[len(revTuple[0]):len(currentPrimer)]
+			rev_stub = currentPrimer[0:len(currentPrimer)-len(revTuple[0])-1]
 			lList = last.findall(template)
 			matchCount = 0
 			for match in lList:
@@ -613,6 +613,13 @@ class DNA(object):
 		self.children = inputDNAs
 	def find(self, string):
 		return 0
+	def clone(self):
+		clone = DNA(self.sequence, self.DNAclass, self.name)
+		clone.topLeftOverhang = Overhang(self.topLeftOverhang.sequence)
+		clone.topRightOverhang = Overhang(self.topRightOverhang.sequence)
+		clone.bottomLeftOverhang = Overhang(self.bottomLeftOverhang.sequence)
+		clone.bottomRightOverhang = Overhang(self.bottomRightOverhang.sequence)
+		return clone
 	def prettyPrint(self):
 		#prints out top and bottom strands, truncates middle so length is ~100bp
 		#example:
@@ -970,56 +977,16 @@ def Ligate(inputDNAs):
 		i = i + 1
 	return products
 
-def ZymoPurify(inputDNAs):
-	if len(inputDNAs) == 0:
-		print 'WARNING: ZymoPurify function passed empty input list -- will return empty output'
-		return inputDNAs
-	outputBands = []
-	sizeTuples = []
-	for DNA in inputDNAs:
-		fragSize = len(DNA.sequence)
-		sizeTuples.append((fragSize,DNA))
-	sizeTuples.sort(reverse=True)
-	currentTuple = sizeTuples[0]
-	currentSize = currentTuple[0]
-	while currentSize > 300 and len(sizeTuples) > 1:
-		outputBands.append(currentTuple[1])
-		sizeTuples.pop(0)
-		currentTuple = sizeTuples[0]
-		currentSize = currentTuple[0]
-	if currentSize > 300:
-		outputBands.append(currentTuple[1])
-	return outputBands
-
-def ShortFragmentCleanup(inputDNAs):
-	if len(inputDNAs) == 0:
-		print 'WARNING: ShortFragmentCleanup function passed empty input list -- will return empty output'
-		return inputDNAs
-	outputBands = []
-	sizeTuples = []
-	for DNA in inputDNAs:
-		fragSize = len(DNA.sequence)
-		sizeTuples.append((fragSize,DNA))
-	sizeTuples.sort(reverse=True)
-	currentTuple = sizeTuples[0]
-	currentSize = currentTuple[0]
-	while currentSize > 50 and len(sizeTuples) > 1:
-		outputBands.append(currentTuple[1])
-		sizeTuples.pop(0)
-		currentTuple = sizeTuples[0]
-		currentSize = currentTuple[0]
-	if currentSize > 50:
-		outputBands.append(currentTuple[1])
-	return outputBands
-
-# 'strategies' = {'L','S','[Integer value]'}
-def GelPurify(inputDNAs,strategy):
+def GelAndZymoPurify(inputDNAs, strategy):
 	# sort based on size
+	shortFlag = False
+	lostFlag = False
 	if len(inputDNAs) == 0:
-		print 'WARNING: GelPurify function passed empty input list -- will return empty output'
+		print 'WARNING: Gel purification function passed empty input list -- will return empty output'
 		return inputDNAs
 	elif len(inputDNAs) == 1:
 		return inputDNAs
+	interBands = []
 	outputBands = []
 	sizeTuples = []
 	for DNA in inputDNAs:
@@ -1033,13 +1000,17 @@ def GelPurify(inputDNAs,strategy):
 			largestSize = currentTuple[n]
 			currentSize = largestSize
 			while currentSize > largestSize * 5/6 and n < len(sizeTuples) - 1:
-				outputBands.append(currentTuple[1])
+				interBands.append(currentTuple[1])
 				n = n + 1
 				currentTuple = sizeTuples[n]
 				currentSize = currentTuple[0]
 			if currentSize > largestSize * 5/6:
-				outputBands.append(currentTuple[1])
-			if len(outputBands) > 1:
+				if currentSize < 50:
+					lostFlag = True
+				elif currentSize < 300:
+					shortFlag = True
+				interBands.append(currentTuple[1])
+			if len(interBands) > 1:
 				print "WARNING: large fragment purification resulted in purification of multiple, possibly unintended distinct DNAs."
 		elif strategy == 'S':
 			sizeTuples.sort()
@@ -1048,13 +1019,17 @@ def GelPurify(inputDNAs,strategy):
 			smallestSize = currentTuple[n]
 			currentSize = smallestSize
 			while currentSize < smallestSize * 5/6 and n < len(sizeTuples) - 1:
-				outputBands.append(currentTuple[1])
+				interBands.append(currentTuple[1])
 				n = n + 1
 				currentTuple = sizeTuples[n]
 				currentSize = currentTuple[0]
 			if currentSize > smallestSize * 5/6:
-				outputBands.append(currentTuple[1])
-			if len(outputBands) > 1:
+				if currentSize < 50:
+					lostFlag = True
+				elif currentSize < 300:
+					shortFlag = True
+				interBands.append(currentTuple[1])
+			if len(interBands) > 1:
 				print "WARNING: small fragment purification resulted in purification of multiple, possibly unintended distinct DNAs."
 	elif isinstance( strategy, ( int, long ) ):
 		sizeTuples.sort(reverse=True)
@@ -1066,15 +1041,41 @@ def GelPurify(inputDNAs,strategy):
 			currentSize = currentTuple[0]
 		while currentSize > strategy * 5/6 and len(sizeTuples) > 1:
 			band = sizeTuples.pop(0)
-			outputBands.append(band[1])
+			interBands.append(band[1])
 			currentTuple = sizeTuples[0]
 			currentSize = currentTuple[0]
 		if currentSize > strategy * 5/6:
-			outputBands.append(currentTuple[1])
-		if len(outputBands) == 0:
+			if currentSize < 50:
+				lostFlag = True
+			elif currentSize < 300:
+				shortFlag = True
+			interBands.append(currentTuple[1])
+		if len(interBands) == 0:
 			print "WARNING: no digest bands present in given range, purification yielding zero DNA products."
-		elif len(outputBands) > 1:
-			print "WARNING: fragment purification in range of band size "+str(strategy)+" resulted in purification of multiple, possibly unintended distinct DNAs."
+		elif len(interBands) > 1:
+			print "WARNING: fragment purification in range of band size '"+str(strategy)+"' resulted in purification of multiple, possibly unintended distinct DNAs."
+	if len(interBands) == 0:
+		if lostFlag:
+			print "WARNING: Purification with given strategy '"+strategy+"' returned short fragments (< 50 bp) that were lost. Returning empty products list."
+		print "WARNING: Purification with given strategy '"+strategy+"' yielded zero products. Returning empty products list."
+	else:
+		if lostFlag:
+			print "WARNING: Purification with given strategy '"+strategy+"' returned at least one short fragment (< 50 bp) that was lost. Returning remaining products."
+		elif shortFlag:
+			print "WARNING: Purification with given strategy '"+strategy+"' yielded short fragments (< 300 bp). Returning short fragment cleanup products."
+			for band in interBands:
+				parentBand = band.clone()
+				parentBand.setChildren(band)
+				band.addParent(parentBand)
+				parentBand.instructions = 'Gel purify ('+band.name+'), followed by short fragment cleanup.'
+				outputBands.append(parentBand)
+		else:
+			for band in interBands:
+				parentBand = band.clone()
+				parentBand.setChildren(band)
+				band.addParent(parentBand)
+				parentBand.instructions = 'Gel purify ('+band.name+'), followed by standard zymo cleanup.'
+				outputBands.append(parentBand)
 	return outputBands
 
 ###checks for presence of regex-encoded feature in seq
@@ -1090,7 +1091,6 @@ def HasColE2(seq):
 	#necessary and sufficient element for ColE2 replication, however a longer sequence is needed for stable replication
 	# 'AGCGCCTCAGCGCGCCGTAGCGTCGATAAAAATTACGGGCTGGGGCGAAACTACCATCTGTTCGAAAAGGTCCGTAAATGGGCCTACAGAGCGATTCGTCAGGGCTGGCCTGTATTCTCACAATGGCTTGATGCCGTTATCCAGCGTGTCGAAATGTACAACGCTTCGCTTCCCGTTCCGCTTTCTCCGGCTGAATGTCGGGCTATTGGCAAGAGCATTGCGAAATATACACACAGGAAATTCTCACCAGAGGGATTTTCCGCTGTACAGGCCGCTCGCGGTCGCAAGGGCGGAACTAAATCTAAGCGCGCAGCAGTTCCTACATCAGCACGTTCGCTGAAACCGTGGGAGGCATTAGGCATCAGTCGAGCGACGTACTACCGAAAATTAAAATGTGACCCAGACCTCGCnnnntga'
 	#longer element shown in the Anderson lab that stably replicates
-
 
 def HasR6K(seq):
 	#has R6k, data from Anderson lab observations
@@ -1206,4 +1206,4 @@ def TransformPlateMiniprep(DNAs, strain, selection_antibiotic):
 yes = DNA('GATCCtaaCTCGAcgtgcaggcttcctcgctcactgactcgctgcgctcggtcgttcggctgcggcgagcggtatcagctcactcaaaggcggtaatCAATTCGACCCAGCTTTCTTGTACAAAGTTGGCATTATAAAAAATAATTGCTCATCAATTTGTTGCAACGAACAGGTCACTATCAGTCAAAATAAAATCATTATTTGCCATCCAGCTGATATCCCCTATAGTGAGTCGTATTACATGGTCATAGCTGTTTCCTGGCAGCTCTGGCCCGTGTCTCAAAATCTCTGATGTTACATTGCACAAGATAAAAATATATCATCATGCCTCCTCTAGACCAGCCAGGACAGAAATGCCTCGACTTCGCTGCTGCCCAAGGTTGCCGGGTGACGCACACCGTGGAAACGGATGAAGGCACGAACCCAGTGGACATAAGCCTGTTCGGTTCGTAAGCTGTAATGCAAGTAGCGTATGCGCTCACGCAACTGGTCCAGAACCTTGACCGAACGCAGCGGTGGTAACGGCGCAGTGGCGGTTTTCATGGCTTGTTATGACTGTTTTTTTGGGGTACAGTCTATGCCTCGGGCATCCAAGCAGCAAGCGCGTTACGCCGTGGGTCGATGTTTGATGTTATGGAGCAGCAACGATGTTACGCAGCAGGGCAGTCGCCCTAAAACAAAGTTAAACATCATGAGGGAAGCGGTGATCGCCGAAGTATCGACTCAACTATCAGAGGTAGTTGGCGTCATCGAGCGCCATCTCGAACCGACGTTGCTGGCCGTACATTTGTACGGCTCCGCAGTGGATGGCGGCCTGAAGCCACACAGTGATATTGATTTGCTGGTTACGGTGACCGTAAGGCTTGATGAAACAACGCGGCGAGCTTTGATCAACGACCTTTTGGAAACTTCGGCTTCCCCTGGAGAGAGCGAGATTCTCCGCGCTGTAGAAGTCACCATTGTTGTGCACGACGACATCATTCCGTGGCGTTATCCAGCTAAGCGCGAACTGCAATTTGGAGAATGGCAGCGCAATGACATTCTTGCAGGTATCTTCGAGCCAGCCACGATCGACATTGATCTGGCTATCTTGCTGACAAAAGCAAGAGAACATAGCGTTGCCTTGGTAGGTCCAGCGGCGGAGGAACTCTTTGATCCGGTTCCTGAACAGGATCTATTTGAGGCGCTAAATGAAACCTTAACGCTATGGAACTCGCCGCCCGACTGGGCTGGCGATGAGCGAAATGTAGTGCTTACGTTGTCCCGCATTTGGTACAGCGCAGTAACCGGCAAAATCGCGCCGAAGGATGTCGCTGCCGACTGGGCAATGGAGCGCCTGCCGGCCCAGTATCAGCCCGTCATACTTGAAGCTAGACAGGCTTATCTTGGACAAGAAGAAGATCGCTTGGCCTCGCGCGCAGATCAGTTGGAAGAATTTGTCCACTACGTGAAAGGCGAGATCACCAAGGTAGTCGGCAAATAACCCTCGAGCCACCCATGACCAAAATCCCTTAACGTGAGTTACGCGTCGTTCCACTGAGCGTCAGACCCCGTAGAAAAGATCAAAGGATCTTCTTGAGATCCTTTTTTTCTGCGCGTAATCTGCTGCTTGCAAACAAAAAAACCACCGCTACCAGCGGTGGTTTGTTTGCCGGATCAAGAGCTACCAACTCTTTTTCCGAAGGTAACTGGCTTCAGCAGAGCGCAGATACCAAATACTGTCCTTCTAGTGTAGCCGTAGTTAGGCCACCACTTCAAGAACTCTGTAGCACCGCCTACATACCTCGCTCTGCTAATCCTGTTACCAGTGGCTGCTGCCAGTGGCGATAAGTCGTGTCTTACCGGGTTGGACTCAAGACGATAGTTACCGGATAAGGCGCAGCGGTCGGGCTGAACGGGGGGTTCGTGCACACAGCCCAGCTTGGAGCGAACGACCTACACCGAACTGAGATACCTACAGCGTGAGCATTGAGAAAGCGCCACGCTTCCCGAAGGGAGAAAGGCGGACAGGTATCCGGTAAGCGGCAGGGTCGGAACAGGAGAGCGCACGAGGGAGCTTCCAGGGGGAAACGCCTGGTATCTTTATAGTCCTGTCGGGTTTCGCCACCTCTGACTTGAGCGTCGATTTTTGTGATGCTCGTCAGGGGGGCGGAGCCTATGGAAAAACGCCAGCAACGCGGCCTTTTTACGGTTCCTGGCCTTTTGCTGGCCTTTTGCTCACATGTTCTTTCCTGCGTTATCCCCTGATTCTGTGGATAACCGTcctaggTGTAAAACGACGGCCAGTCTTAAGCTCGGGCCCCAAATAATGATTTTATTTTGACTGATAGTGACCTGTTCGTTGCAACAAATTGATGAGCAATGCTTTTTTATAATGCCAACTTTGTACAAAAAAGCAGGCTCCGAATTGgtatcacgaggcagaatttcagataaaaaaaatccttagctttcgctaaggatgatttctgGAATTCATGA', 'plasmid', 'yes Plasmid')
 pth2993 = DNA('GATCTctatgctactccatcgagccgtcaattgtctgattcgttaccaattatgacaacttgacggctacatcattcactttttcttcacaaccggcacggaactcgctcgggctggccccggtgcattttttaaatacccgcgagaaatagagttgatcgtcaaaaccaacattgcgaccgacggtggcgataggcatccgggtggtgctcaaaagcagcttcgcctggctgatacgttggtcctcgcgccagcttaagacgctaatccctaactgctggcggaaaagatgtgacagacgcgacggcgacaagcaaacatgctgtgcgacgctggcgatatcaaaattgctgtctgccaggtgatcgctgatgtactgacaagcctcgcgtacccgattatccatcggtggatggagcgactcgttaatcgcttccatgcgccgcagtaacaattgctcaagcagatttatcgccagcagctccgaatagcgcccttccccttgcccggcgttaatgatttgcccaaacaggtcgctgaaatgcggctggtgcgcttcatccgggcgaaagaaccccgtattggcaaatattgacggccagttaagccattcatgccagtaggcgcgcggacgaaagtaaacccactggtgataccattcgcgagcctccggatgacgaccgtagtgatgaatctctcctggcgggaacagcaaaatatcacccggtcggcaaacaaattctcgtccctgatttttcaccaccccctgaccgcgaatggtgagattgagaatataacctttcattcccagcggtcggtcgataaaaaaatcgagataaccgttggcctcaatcggcgttaaacccgccaccagatgggcattaaacgagtatcccggcagcaggggatcattttgcgcttcagccatacttttcatactcccgccattcagagaagaaaccaattgtccatattgcatcagacattgccgtcactgcgtcttttactggctcttctcgctaaccaaaccggtaaccccgcttattaaaagcattctgtaacaaagcgggaccaaagccatgacaaaaacgcgtaacaaaagtgtctataatcacggcagaaaagtccacattgattatttgcacggcgtcacactttgctatgccatagcatttttatccataagattagcggatcttacctgacgctttttatcgcaactctCTACTGTTTCTCCATACCCgGATCTGGAGAGATGCCGGAGCGGCTGAACGGACCGGTCTCTAAAACCGGAGTAGGGGCAACTCTACCGGGGGTTCAAATCCCCCTCTCTCCGCCACTGCAGATCCTTAGCGAAAGCTAAGGATTTTTTTTGGATCCtaaCTCGCTCCTCaggcttcctcgctcactgactcgctgcgctcggtcgttcggctgcggcgagcggtatcagctcactcaaaggcggtaatCAATTCGACCCAGCTTTCTTGTACAAAGTTGGCATTATAAAAAATAATTGCTCATCAATTTGTTGCAACGAACAGGTCACTATCAGTCAAAATAAAATCATTATTTGCCATCCAGCTGATATCCCCTATAGTGAGTCGTATTACATGGTCATAGCTGTTTCCTGGCAGCTCTGGCCCGTGTCTCAAAATCTCTGATGTTACATTGCACAAGATAAAAATATATCATCATGCCTCCTCTAGActtagacgtcaggtggcacttttcggggaaatgtgcgcggaacccctatttgtttatttttctaaatacattcaaatatgtatccgctcatgagacaataaccctgataaatgcttcaataatattgaaaaaggaagagtatgagtattcaacatttccgtgtcgcccttattcccttttttgcggcattttgccttcctgtttttgctcacccagaaacgctggtgaaagtaaaagatgctgaagatcagttgggtgcacgagtgggttacatcgaactggatctcaacagcggtaagatccttgagagttttcgccccgaagaacgttttccaatgatgagcacttttaaagttctgctatgtggcgcggtattatcccgtattgacgccgggcaagagcaactcggtcgccgcatacactattctcagaatgacttggttgagtactcaccagtcacagaaaagcatcttacggatggcatgacagtaagagaattatgcagtgctgccataaccatgagtgataacactgcggccaacttacttctgacaacgatcggaggaccgaaggagctaaccgcttttttgcacaacatgggggatcatgtaactcgccttgatcgttgggaaccggagctgaatgaagccataccaaacgacgagcgtgacaccacgatgcctgtagcaatggcaacaacgttgcgcaaactattaactggcgaactacttactctagcttcccggcaacaattaatagactggatggaggcggataaagttgcaggaccacttctgcgctcggcccttccggctggctggtttattgctgataaatctggagccggtgagcgtgggtctcgcggtatcattgcagcactggggccagatggtaagccctcccgtatcgtagttatctacacgacggggagtcaggcaactatggatgaacgaaatagacagatcgctgagataggtgcctcactgattaagcattggtaactgtcagaccaagtttactcatatatactttagattgatttaaaacttcatttttaatttaaaaggatctaGGTGAAGATCCTTTTTGATAATCCTCGAGaGCAGTTCAACCTGTTGATAGtacgtactaagctctcatgtttcacgtactaagctctcatgtttaacgtactaagctctcatgtttaacgaactaaaccctcatggctaacgtactaagctctcatggctaacgtactaagctctcatgtttcacgtactaagctctcatgtttgaacaataaaattaatataaatcagcaacttaaatagcctctaaggttttaagttttataagaaaaaaaagaatatataaggcttttaaagcttttaaggtttaacggttgtggacaacaagccagggatgtaacgcactgagaagcccttagagcctctcaaagcaattttgagtgacacaggaacacttaacggctgacatgggaattagccatgggcccgtgcgaatcaccctaggTGTAAAACGACGGCCAGTCTTAAGCTCGGGCCCCAAATAATGATTTTATTTTGACTGATAGTGACCTGTTCGTTGCAACAAATTGATGAGCAATGCTTTTTTATAATGCCAACTTTGTACAAAAAAGCAGGCTCCGAATTGgtatcacgaggcagaatttcagataaaaaaaatCCTTAGCTTTCGCTAAGGATCTGAAGTGgaattcatgA', 'plasmid', '2993')
 lol = Strain("name", "pUC,R6K,ColE2", "KanR,CmR", yes)
-#TransformPlateMiniprep([pth2993], lol, "SpecR")
+TransformPlateMiniprep([yes], lol, "SpecR")
