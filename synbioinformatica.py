@@ -4,12 +4,9 @@
 import sys, random, re, math, difflib
 from decimal import *
 
-# TODO: DNA cloning function for making zymo and gelpurify products
 # TODO: context-specific warnings + DNA names
 # TODO: hashing and recognition of redundant digest / ligation products
-# TODO: AssemblyTree nodes and class structure
 # TODO: for PCR, identification of primers on the edge of a circular sequence
-
 
 dna_alphabet = {'A':'A', 'C':'C', 'G':'G', 'T':'T',
                 'R':'AG', 'Y':'CT', 'W':'AT', 'S':'CG', 'M':'AC', 'K':'GT',
@@ -47,8 +44,6 @@ def translate( sequence ):
     """Return the translated protein from 'sequence' assuming +1 reading frame"""
     return ''.join([gencode.get(sequence[3*i:3*i+3],'X') for i in range(len(sequence)//3)])
 
-
-
 # Read in all enzymes:
 def EnzymeDictionary():
 	EnzymeDictionary = {}
@@ -56,18 +51,16 @@ def EnzymeDictionary():
 	for line in fh:
 		card = line.rstrip().split('\t')
 		card[0] = re.sub(r'\-','_',card[0])
-		EnzymeDictionary[card[0]] = restrictionEnzyme(card[0],card[1],card[2],card[3],card[4],
-													card[5],card[6],card[7],card[8],card[9])
+		EnzymeDictionary[card[0]] = restrictionEnzyme(card[0],card[1],card[2],card[3],card[4],card[5],card[6],card[7],card[8],card[9])
 	return EnzymeDictionary
 
-# Suffix Tree implementation from: http://chipsndips.livejournal.com/2005/12/07/
+# Description: Suffix Tree implementation for the purpose of PCR Longest Common Substring identification
+# Code from: http://chipsndips.livejournal.com/2005/12/07/
 inf = 1000000
-
 # Define a  for a node in the suffix tree
 class SuffixNode(dict):
 	def __init__(self):
 		self.suffixLink = None # Suffix link as defined by Ukkonen
-
 class LCS:
 	def __init__(self,str1,str2):
 		str = str1 + str2
@@ -130,7 +123,16 @@ class LCS:
 		start = self.deepest[1]-self.deepest[0]+1
 		end = self.deepest[1]+1
 		return (self.str[start:end],start,end)
+	def LCSasRegex(self, currentPrimer, template):
+		start = self.deepest[1]-self.deepest[0]+1
+		end = self.deepest[1]+1
+		MatchIndicesTuple = (self.str[start:end],start,end)
+		annealingRegex = re.compile(MatchIndicesTuple[0], re.IGNORECASE)
+		PrimerStub = currentPrimer[0:len(currentPrimer)-len(MatchIndicesTuple[0])-1]
+		AnnealingMatches = annealingRegex.findall(template)
+		return (AnnealingMatches, MatchIndicesTuple, PrimerStub)
 
+# Description: PrimerError class associates information about primer design errors and sequences
 class PrimerError(Exception):
     """Exception raised for errors in the primer(s) input.
 
@@ -145,145 +147,140 @@ class PrimerError(Exception):
         self.template = template
         self.msg = msg
 
-#Note: PCR() product is not case preserving
+# Description: PCRErrorHandling() function identifies errors in primer design and raises exceptions based on errors and their context
+def PCRErrorHandling(InputTuple):
+	(fwd,matchCount,matchedAlready,nextOrientation,myList,tooShort1,currentPrimer,template) = InputTuple
+	if fwd:
+		if matchCount == 0 & len(myList) > 0:				# no Tm > 45 C matches in forward direction
+			tooShort1 = True
+		else:
+			tooShort1 = False
+		if matchCount > 1:									# if matches in forward direction more than once
+			if nextOrientation == 2: 							# ... but was supposed to match in reverse direction
+				raise PrimerError(currentPrimer,template,'primers both anneal in forward (5\'->3\') orientation AND primer anneals to multiple sites in template.')
+			raise PrimerError(currentPrimer,template,'primer anneals to multiple sites in template.')
+		elif matchCount == 1:								# if matches in the forward direction exactly once
+			if nextOrientation == 2: 							# ... but was supposed to match in reverse direction
+				raise PrimerError(currentPrimer,template,'primers both anneal in forward  (5\'->3\') orientation.')
+			matchedAlready = 1
+		return (matchedAlready,tooShort1)
+	else:
+		if matchCount == 0 & len(myList) > 0:				# no Tm > 45 C matches in forward direction
+			tooShort2 = True
+		else:
+			tooShort2 = False
+		if matchCount > 1:									# if matches in reverse direction more than once
+			if matchedAlready == 1:								# ... and already matched in forward direction
+				if nextOrientation == 1: 							# ... but was supposed to match in forward direction
+					raise PrimerError(currentPrimer,template,'primers both anneal in reverse (3\'->5\') orientation AND error primer anneals to multiple sites in template AND error primer anneals in both orientations.')
+				raise PrimerError(currentPrimer,template,'primer anneals to multiple sites in template AND error primer anneals in both orientations.')
+			if nextOrientation == 1: 
+				raise PrimerError(currentPrimer,template,'primers both anneal in reverse (3\'->5\') orientation AND error primer anneals to multiple sites in template.')
+			raise PrimerError(currentPrimer,template,'primer anneals to multiple sites in template.')
+		elif matchCount == 1: 								# if matches in the reverse direction exactly once
+			if matchedAlready == 1:								# ... and already matched in forward direction
+				if nextOrientation == 1: 							# ... but was supposed to match in forward direction
+					raise PrimerError(currentPrimer,template,'both primers have same reverse (3\'->5\') orientation AND error primer anneals in both orientations.')
+				raise PrimerError(currentPrimer,template,'primer primes in both orientations.')
+			else:
+				matchedAlready = 2
+		if matchedAlready == 0:								# if no matches
+			if tooShort1 and tooShort2:							# ... it may be because the annealing region has a tm < 45 C
+				raise PrimerError(currentPrimer, template,'primer does not anneal in either orientation (annealing Tm < 45 C).')
+			raise PrimerError(currentPrimer,template,'primer does not anneal in either orientation.') 	# ... or not.
+		return (matchedAlready, tooShort2)
+
+# Description: RaisePrimerError() function provides context specific warnings to user about PCR failure as a result of primer design
+def RaisePrimerError(inputTuple, error):
+	(primer1DNA, primer2DNA, templateDNA) = inputTuple
+	print 'EXCEPTION: For PCR of template ('+templateDNA.name+') with primers ('+primer1DNA.name+', '+primer2DNA.name+'), '+error.msg
+	print 'Error Primer: '+error.primer[:-1]
+
+# Description: AssemblyTreeRelationships() function assigns relationships for PCR inputs and PCR product for assembly tree purposes
+def AssemblyTreeRelationships(inputTuple, parent, fwdTM, revTM):
+	(primer1DNA, primer2DNA, templateDNA) = inputTuple
+	for child in inputTuple:
+		child.addParent(parent)
+	parent.setChildren(inputTuple)
+	thermoCycle = str(int(round(len(parent.sequence)/1000+0.5)))+'K'+str(int(round(max(fwdTM,revTM))))
+	parent.instructions = thermoCycle+' PCR template '+templateDNA.name+' with primers '+primer1DNA.name+', '+primer2DNA.name
+	return parent
+
+# Description: PCR() function constructs generalized suffix tree for template and a given primer to identify annealing region,
+# and raises PrimerError exceptions for different cases of failed PCR as a result of primer design
+# Note: PCR() product is not case preserving
 def PCR(primer1DNA, primer2DNA, templateDNA):
-	template = templateDNA.sequence + '$'
-	primer_1 = primer1DNA.sequence + '$'
-	primer_2 = primer2DNA.sequence + '$'
-	(fwdTM, revTM) = (0,0)
+	# Suffix Tree string intiialization, non-alphabet character concatenation
+	(template, primer_1, primer_2) = (templateDNA.sequence + '$', primer1DNA.sequence + '$', primer2DNA.sequence + '$')
+	# Tuple of assemblyTree 'children', for the purpose of child/parent assignment
 	inputTuple = (primer1DNA, primer2DNA, templateDNA)
+	# Initialization of all parameters, where indices is the start / stop indices + direction of annealing primer sequences 
+	(fwdTM, revTM, indices, counter, rightStub, leftStub, nextOrientation) = (0,0,[0,0,0,0,0,0],0,'','',0)
 	try:
-		indices = [0,0,0,0,0,0]		# List for storing primer annealing region start/stop indices and strand association
-		counter = 0
-		rightStub = ''				# "stub" = non-annealing regions of the input primers. Want to append these 
-		leftStub = ''					# to the right (5') and left (3') ends of the output PCR product.
-		nextOrientation = 0
-		for currentPrimer in (primer_1, primer_2):		# not making any assumptions about the directionality of the input primers
-			fwdMatch = LCS(template.upper(),currentPrimer.upper())
-			fwdTuple = fwdMatch.LongestCommonSubstring()
-			first = re.compile(fwdTuple[0], re.IGNORECASE)
-			fwd_stub = currentPrimer[0:len(currentPrimer)-len(fwdTuple[0])-1]
-			fList = first.findall(template)
+		# NOTE: no assumptions made about input primer directionality
+		for currentPrimer in (primer_1, primer_2):
+			fwdMatch = LCS(template.upper(),currentPrimer.upper())	
+			(forwardAnnealingMatches, forwardMatchIndicesTuple, forwardPrimerStub) = fwdMatch.LCSasRegex(currentPrimer, template)
+			(matchCount, matchedAlready, start, stop) = (0,0,0,0)
+			for match in forwardAnnealingMatches:
+				if primerTm(match) >= 45:			# forward match criteria: annealing Tm >= 45 C for matches
+					matchCount += 1
+			tooShort1 = False 						# Default
+			# Forward case error handling: delegated to PCRErrorHandling function
+			(matchedAlready,tooShort1) = PCRErrorHandling((1,matchCount,matchedAlready,nextOrientation,forwardAnnealingMatches,tooShort1,currentPrimer,template))
+			revMatch = LCS(template.upper(),reverseComplement(currentPrimer).upper()+'$')
+			(reverseAnnealingMatches, reverseMatchIndicesTuple, reversePrimerStub) = revMatch.LCSasRegex(currentPrimer, template)
 			matchCount = 0
-			matchedAlready = 0
-			start = 0
-			stop = 0
-			for match in fList:
-				if primerTm(match) >= 45:						# switched this to Tm >= 45 C for matches
-					matchCount = matchCount + 1
-			if matchCount == 0 & len(fList) > 0:				# no matches in forward direction
-				tooShort1 = True
-			else:
-				tooShort1 = False
-			if matchCount > 1:									# if matches in forward direction more than once
-				if nextOrientation == 2: 							# ... but was supposed to match in reverse direction
-					raise PrimerError(currentPrimer,template,'Primers have same forward (5\'->3\') orientation AND primer anneals to multiple sites in template:')
-				raise PrimerError(currentPrimer,template,'Primer anneals to multiple sites in template:')
-			elif matchCount == 1:								# if matches in the forward direction exactly once
-				if nextOrientation == 2: 							# ... but was supposed to match in reverse direction
-					raise PrimerError(currentPrimer,template,'Primers have same forward (5\'->3\') orientation')
-				matchedAlready = 1
-			revcomp = reverseComplement(currentPrimer)
-			revMatch = LCS(template.upper(),revcomp.upper()+'$')
-			revTuple = revMatch.LongestCommonSubstring()
-			last = re.compile(revTuple[0], re.IGNORECASE)
-			rev_stub = currentPrimer[0:len(currentPrimer)-len(revTuple[0])-1]
-			lList = last.findall(template)
-			matchCount = 0
-			for match in lList:
-				if primerTm(match) >= 45:						# switched this to Tm >= 45 C for matches
-					matchCount = matchCount + 1
-			if matchCount == 0 & len(lList) > 0:				# no matches in forward direction
-				tooShort2 = True
-			else:
-				tooShort2 = False
-			if matchCount > 1:									# if matches in reverse direction more than once
-				if matchedAlready == 1:								# ... and already matched in forward direction
-					if nextOrientation == 1: 							# ... but was supposed to match in forward direction
-						raise PrimerError(currentPrimer,template,'Primers have same reverse (3\'->5\') orientation AND primer anneals to multiple sites in template AND it primes in both orientations:')
-					raise PrimerError(currentPrimer,template,'Primer anneals to multiple sites in template AND it primes in both orientations:')
-				if nextOrientation == 1: 
-					raise PrimerError(currentPrimer,template,'Primers have same reverse (3\'->5\') orientation AND primer anneals to multiple sites in template:')
-				raise PrimerError(currentPrimer,template,'Primer anneals to multiple sites in template:')
-			elif matchCount == 1: 								# if matches in the reverse direction exactly once
-				if matchedAlready == 1:								# ... and already matched in forward direction
-					if nextOrientation == 1: 							# ... but was supposed to match in forward direction
-						raise PrimerError(currentPrimer,template,'Primers have same reverse (3\'->5\') orientation AND primer primes in both orientations:')
-					raise PrimerError(currentPrimer,template,'Primer primes in both orientations:')
-				else:
-					matchedAlready = 2
-			if matchedAlready == 0:								# if no matches
-				if tooShort1 and tooShort2:							# ... it may be because the annealing region has a tm < 45 C
-					raise PrimerError(currentPrimer, template,'Primer is too short and does not anneal')
-				raise PrimerError(currentPrimer,template,'Primer does not prime in either orientation:') 	# ... or not.
+			for match in reverseAnnealingMatches:
+				if primerTm(match) >= 45:			# reverse match criteria: annealing Tm >= 45 C for matches
+					matchCount += 1
+			# Reverse case error handling: delegated to PCRErrorHandling function
+			(matchedAlready,tooShort2) = PCRErrorHandling((0,matchCount,matchedAlready,nextOrientation,reverseAnnealingMatches,tooShort1,currentPrimer,template))
 			if matchedAlready == 1:
-				indices[counter] = fwdTuple[1]
-				counter = counter + 1
-				indices[counter] = fwdTuple[2]
-				counter = counter + 1
-				indices[counter] = 'fwd'
-				counter = counter + 1
-				nextOrientation = 2
-				leftStub = fwd_stub
-			if matchedAlready == 2:
-				indices[counter] = revTuple[1]
-				counter = counter + 1
-				indices[counter] = revTuple[2]
-				counter = counter + 1
-				indices[counter] = 'rev'
-				counter = counter + 1
-				nextOrientation = 1
-				rightStub = reverseComplement(rev_stub)
+				(indices[counter], indices[counter+1], indices[counter+2]) = (forwardMatchIndicesTuple[1], forwardMatchIndicesTuple[2], 'fwd')
+				(counter,nextOrientation,leftStub) = (counter+3, 2, forwardPrimerStub)
+			elif matchedAlready == 2:
+				(indices[counter], indices[counter+1], indices[counter+2]) = (reverseMatchIndicesTuple[1], reverseMatchIndicesTuple[2], 'rev')
+				(counter,nextOrientation,rightStub) = (counter+3, 1, reverseComplement(reversePrimerStub))
 		if indices[2] == 'fwd':
-			fwdStart = indices[0]
-			fwdEnd = indices[1]
-			revStart = indices[3]
-			revEnd = indices[4]
-			fwdTM = primerTm(template[fwdStart:fwdEnd])
-			revTM = primerTm(template[revStart:revEnd])
+			(fwdStart, fwdEnd, revStart, revEnd) = (indices[0], indices[1], indices[3], indices[4])
+			fwdTM, revTM= (primerTm(template[fwdStart:fwdEnd]), primerTm(template[revStart:revEnd])) 
 			if fwdStart < revStart and fwdEnd < revEnd:
 				parent = DNA(leftStub+template[fwdStart:revEnd]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
 			else:
-				if templateDNA.topology == 'circular':	# circular template is exception to the fwdStart < revStart and fwdEnd < revEnd rule
+				# circular template is exception to the fwdStart < revStart and fwdEnd < revEnd rule
+				if templateDNA.topology == 'circular':	
 					parent = DNA(leftStub+template[fwdStart:len(template)-1]+template[:revStart]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
 				else:
-					raise PrimerError((primer1DNA.sequence, primer2DNA.sequence),template,'Forward primer beginning and ending indices must be before those of the reverse:')
+					raise PrimerError((primer1DNA.sequence, primer2DNA.sequence),template,'forward primer must anneal upstream of the reverse.')
 		elif indices[2] == 'rev':
-			fwdStart = indices[3]
-			fwdEnd = indices[4]
-			revStart = indices[0]
-			revEnd = indices[1]
-			fwdTM = primerTm(template[fwdStart:fwdEnd])
-			revTM = primerTm(template[revStart:revEnd])
+			(fwdStart, fwdEnd, revStart, revEnd) = (indices[3], indices[4], indices[0], indices[1])
+			(fwdTM, revTM) = (primerTm(template[fwdStart:fwdEnd]), primerTm(template[revStart:revEnd]))
 			if fwdStart < revStart and fwdEnd < revEnd:
 				parent = DNA(leftStub+template[fwdStart:revEnd]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
 			else:
+				# circular template is exception to the fwdStart < revStart and fwdEnd < revEnd rule
 				if templateDNA.topology == 'circular':
 					parent = DNA(leftStub+template[fwdStart:len(template)-1]+template[:revStart]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
 				else:
-					raise PrimerError((primer1DNA.sequence, primer2DNA.sequence),template,'Forward primer beginning and ending indices must be before those of the reverse:')
-		for child in inputTuple:
-			child.addParent(parent)
-		parent.setChildren(inputTuple)
-		thermoCycle = str(int(round(len(parent.sequence)/1000+0.5)))+'K'+str(int(round(max(fwdTM,revTM))))
-		parent.instructions = thermoCycle+' PCR template '+templateDNA.name+' with primers '+primer1DNA.name+', '+primer2DNA.name
-		return parent
+					raise PrimerError((primer1DNA.sequence, primer2DNA.sequence),template,'forward primer must anneal upstream of the reverse.')
+		return AssemblyTreeRelationships(inputTuple, parent, fwdTM, revTM)
 	except PrimerError as error:
-		print 'EXCEPTION: '+ error.msg
-		print 'primer: ' 
-		print error.primer
-		sys.exit()
+		RaisePrimerError(inputTuple, error)
+		sys.exit(1)
 
-# Note: reverseComplement() is case preserving
+# Description: reverseComplement() is case preserving reverse complementation of nucleotide sequences
 def reverseComplement(sequence):
-	basecomplement = {'G':'C', 'A':'T', 'T':'A', 'C':'G', 'R':'Y', 'Y':'R', 'M':'K', 'K':'M', 'S':'S', 'W':'W', 'H':'D', 'B':'V', 'V':'B', 'D':'H', 'N':'N','g':'c', 'a':'t', 't':'a', 'c':'g', 'r':'y', 'y':'r', 'm':'k', 'k':'m', 's':'s', 'w':'w', 'h':'d', 'b':'v', 'v':'b', 'd':'h', 'n':'n'}
-  	return "".join([basecomplement.get(nucleotide.lower(), '') for nucleotide in sequence[::-1]])
+  	return "".join([complement_alphabet.get(nucleotide, '') for nucleotide in sequence[::-1]])
 
-# Note: reverseComplement() is case preserving
+# Description: Complement() is case preserving complementation of nucleotide sequences
 def Complement(sequence):
-	basecomplement = {'G':'C', 'A':'T', 'T':'A', 'C':'G', 'R':'Y', 'Y':'R', 'M':'K', 'K':'M', 'S':'S', 'W':'W', 'H':'D', 'B':'V', 'V':'B', 'D':'H', 'N':'N','g':'c', 'a':'t', 't':'a', 'c':'g', 'r':'y', 'y':'r', 'm':'k', 'k':'m', 's':'s', 'w':'w', 'h':'d', 'b':'v', 'v':'b', 'd':'h', 'n':'n'}
-  	return "".join([basecomplement.get(nucleotide.lower(), '') for nucleotide in sequence[0:]])
+  	return "".join([complement_alphabet.get(nucleotide, '') for nucleotide in sequence[0:]])
 
+# Primer TM function suite: primerTm(), primerTmsimple(), get_55_primer(), nearestNeighborTmNonDegen(), getTerminalCorrectionsDsHash(),
+# getTerminalCorrectionsDhHash(), getDsHash(), getDhHash()
+# Implemented by Tim Hsaiu in JavaScript, adapted to Python by Nima Emami
+# Based on Santa Lucia et. al. papers
 def primerTm(sequence):
 	milliMolarSalt = 50
 	milliMolarMagnesium = 1.5
@@ -299,7 +296,6 @@ def primerTmsimple(sequence):
 
 # phusion notes on Tm
 # https://www.finnzymes.fi/optimizing_tm_and_annealing.html
-
 # get substring from the beginning of input that is 55C Tm
 def get_55_primer(sequence):
 	lastChar = 17
@@ -316,7 +312,6 @@ def nearestNeighborTmNonDegen (sequence, molarSalt, molarPrimerTotal, molarMagne
 	# SantaLucia, J. (1998) Proc. Nat. Acad. Sci. USA 95, 1460.
 	# Allawi, H.T. and SantaLucia, J. Jr. (1997) Biochemistry 36, 10581.
 	# von Ahsen N. et al. (1999) Clin. Chem. 45, 2094.
-
 	sequence = sequence.lower()
 
 	R = 1.987 # universal gas constant in Cal/degrees C * mol
@@ -395,11 +390,15 @@ def getDhHash():
 	'cc' : -8.0}
 	return dictionary
 
+# TODO: clean up and modularize
+# Description: Digest() function
 def Digest(InputDNA, Enzymes):
 	(indices, frags, sites, totalLength) = ([], [], "", len(InputDNA.sequence)) # Initialization
 	enzNames = ''
 	incubationTemp = 0
+	nameList = []
 	for enzyme in Enzymes:
+		nameList.append(enzyme.name)
 		enzNames = enzNames+enzyme.name+', '
 		incubationTemp = max(incubationTemp,enzyme.incubate_temp)
 	enzNames = enzNames[:-2]
@@ -554,14 +553,17 @@ def Digest(InputDNA, Enzymes):
 	for frag in frags:
 		frag.setChildren((InputDNA, ))
 		InputDNA.addParent(frag)
-		frag.instructions = 'Digest ('+InputDNA.name+') with '+enzNames+' at '+incubationTemp+'C in [EMPTY BUFFER] for 1 hour.'
+		if len(nameList) == 2:
+			bufferChoices = DigestBuffer(nameList[0],nameList[1])
+		else:
+			bufferChoices = DigestBuffer(nameList[0])
+		bestBuffer = int(bufferChoices[0])
+		if bestBuffer < 5:
+			bestBuffer = 'NEB'+str(bestBuffer)
+		else:
+			bestBuffer = 'Buffer EcoRI' 
+		frag.instructions = 'Digest ('+InputDNA.name+') with '+enzNames+' at '+incubationTemp+'C in '+bestBuffer+' for 1 hour.'
 	return frags
-
-def revcomp(string):
-       letters = list(string)
-       letters = [complement_alphabet[base] for base in letters]
-       rcomp = ''.join(letters)
-       return rcomp[::-1] #reverses string
 
 class Overhang(object):
 	def __init__(self, seq=""):
@@ -576,12 +578,12 @@ class DNA(object):
 		isnotDNA = False
 		exceptionText = "" 
 		for m in notDNA.finditer(self.sequence.lower()):
-			exceptionText = exceptionText + m.group()+ " at position "+ str( m.start()) + " is not valid IUPAC DNA; "
+			exceptionText = exceptionText + m.group()+ " at position "+ str( m.start()) + " is not valid IUPAC DNA."
 			isnotDNA = True
 		if(isnotDNA):
 			raise Exception(exceptionText)
-		self.name = name #would be pbca1256 for vectors or pbca1256-Bth8199 for plasmids
-		self.description = "SpecR pUC" #this is for humans to read
+		self.name = name 	#would be pbca1256 for vectors or pbca1256-Bth8199 for plasmids
+		self.description = "SpecR pUC"							 #this is for humans to read
 		self.dam_methylated = True
 		# self.overhang = "circular" #blunt, 3', 5', circular... should be a class in itself?
 		self.topLeftOverhang = ""
@@ -605,7 +607,7 @@ class DNA(object):
 		else:
 			raise Exception("Invalid molecule class. Acceptable classes are 'digest', genomic', 'PCR product', 'plasmid' and 'primer'.")
 	def reversecomp(self):
-		return revcomp(self.sequence) #reverses string
+		return reverseComplement(self.sequence) #reverses string
 		#code to handle the overhangs & other object attributes
 	def addParent(self, DNA):
 		self.parents.append(DNA)
@@ -659,7 +661,7 @@ class DNA(object):
 				print "\t"+reverseComplement(self.sequence)
 		return 0
 	
-#taken from BioPython
+# Description: BaseExpand() for regex generation, taken from BioPython
 def BaseExpand(base):
     """BaseExpand(base) -> string.
 
@@ -672,7 +674,7 @@ def BaseExpand(base):
     base = base.upper()
     return dna_alphabet[base]
 
-#function to convert recog site into regex, from Biopython
+# Description: regex() function to convert recog site into regex, from Biopython
 def regex(site):
     """regex(site) -> string.
 
@@ -691,12 +693,14 @@ def regex(site):
             reg_ex = expand.join(reg_ex.split(base))
     return reg_ex
 
+# Description: ToRegex() function to convert recog site into regex, from Biopython
 def ToRegex(site, name):
 	sense = ''.join(['(?P<', name, '>', regex(site.upper()), ')'])
-	antisense = ''.join(['(?P<', name, '_as>', regex(revcomp( site.upper() )), ')'])
+	antisense = ''.join(['(?P<', name, '_as>', regex( reverseComplement( site.upper() )), ')'])
 	rg = sense + '|' + antisense
 	return rg	
 
+# Description: restrictionEnzyme class encapsulates information about buffers, overhangs, incubation / inactivation, end distance, etc.
 class restrictionEnzyme(object):
 	def __init__(self,name="", buffer1="", buffer2="", buffer3="", buffer4="", bufferecori="", heatinact="", incubatetemp="", recognitionsite="",distance=""):
 		self.name = name
@@ -756,10 +760,8 @@ class restrictionEnzyme(object):
 				indices.append(span)	
 		return indices
 
-
-#finds the optimal digestBuffer
-# todo:
-#If Buffer 2 > 150, return Buffer 2 and list of activity values, else, return buffer 1, 3, or 4 (ignore EcoRI)
+# Description: DigestBuffer() function finds the optimal digestBuffer
+# todo: If Buffer 2 > 150, return Buffer 2 and list of activity values, else, return buffer 1, 3, or 4 (ignore EcoRI)
 # return format will be list, [rec_buff, [buff1_act, buff2_act...buff4_Act]]
 def DigestBuffer(*str_or_list):
 	best_buff = ""
@@ -846,6 +848,7 @@ def FindDistinguishingEnzyme(list_of_dnas):
 def FindDistEnz():
 	return FindDistinguishingEnzyme(list_of_dnas)
 
+# Description: SetFlags() returns overhang information about a DNA() digest object
 def SetFlags(frag):
 	(TL,TR,BL,BR) = (0,0,0,0)
 	if frag.topLeftOverhang.sequence != '':
@@ -858,7 +861,7 @@ def SetFlags(frag):
 		BR = 1
 	return (TL,TR,BL,BR)
 
-#accepts list of DNA, outputs list of DNA
+# Description: Ligate() function accepts a list of DNA() digest objects, and outputs list of DNA
 def Ligate(inputDNAs):
 	products = []
 	# self ligation
@@ -979,6 +982,75 @@ def Ligate(inputDNAs):
 		i = i + 1
 	return products
 
+# TODO: condense and comment
+# Description: ZymoPurify() function takes a list of DNA objects and filters out < 300 bp DNA's
+def ZymoPurify(inputDNAs):
+	if len(inputDNAs) == 0:
+		print 'WARNING: Zymo purification function passed empty input list -- will return empty output'
+		return inputDNAs
+	outputBands = []
+	sizeTuples = []
+	for DNA in inputDNAs:
+		fragSize = len(DNA.sequence)
+		sizeTuples.append((fragSize,DNA))
+	sizeTuples.sort(reverse=True)
+	currentTuple = sizeTuples[0]
+	currentSize = currentTuple[0]
+	while currentSize > 300 and len(sizeTuples) > 1:
+		band = currentTuple[1]
+		parentBand = band.clone()
+		parentBand.setChildren(band)
+		band.addParent(parentBand)
+		parentBand.instructions = 'Perform standard zymo cleanup on ('+band.name+').'
+		outputBands.append(parentBand)
+		sizeTuples.pop(0)
+		currentTuple = sizeTuples[0]
+		currentSize = currentTuple[0]
+	if currentSize > 300:
+		band = currentTuple[1]
+		parentBand = band.clone()
+		parentBand.setChildren(band)
+		band.addParent(parentBand)
+		parentBand.instructions = 'Perform standard zymo cleanup on ('+band.name+').'
+		outputBands.append(parentBand)
+	return outputBands
+
+# TODO: condense and comment
+# Description: ShortFragmentCleanup() function takes a list of DNA objects and filters out < 50 bp DNA's
+def ShortFragmentCleanup(inputDNAs):
+	if len(inputDNAs) == 0:
+		print 'WARNING: ShortFragmentCleanup function passed empty input list -- will return empty output'
+		return inputDNAs
+	outputBands = []
+	sizeTuples = []
+	for DNA in inputDNAs:
+		fragSize = len(DNA.sequence)
+		sizeTuples.append((fragSize,DNA))
+	sizeTuples.sort(reverse=True)
+	currentTuple = sizeTuples[0]
+	currentSize = currentTuple[0]
+	while currentSize > 50 and len(sizeTuples) > 1:
+		band = currentTuple[1]
+		parentBand = band.clone()
+		parentBand.setChildren(band)
+		band.addParent(parentBand)
+		parentBand.instructions = 'Perform short fragment cleanup on ('+band.name+').'
+		outputBands.append(parentBand)
+		sizeTuples.pop(0)
+		currentTuple = sizeTuples[0]
+		currentSize = currentTuple[0]
+	if currentSize > 50:
+		band = currentTuple[1]
+		parentBand = band.clone()
+		parentBand.setChildren(band)
+		band.addParent(parentBand)
+		parentBand.instructions = 'Perform short fragment cleanup on ('+band.name+').'
+		outputBands.append(parentBand)
+	return outputBands
+
+# TODO: condense and comment
+# Description: GelAndZymoPurify() function employs a user-specified purification strategy to cut out a range of band sizes, and
+# then filters out < 300 bp DNA's. If 50 bp < [ ] < 300 bp DNAs are detected, switches to short fragment cleanup mode.
 def GelAndZymoPurify(inputDNAs, strategy):
 	# sort based on size
 	shortFlag = False
@@ -1067,25 +1139,25 @@ def GelAndZymoPurify(inputDNAs, strategy):
 			print "WARNING: Purification with given strategy '"+strategy+"' yielded short fragments (< 300 bp). Returning short fragment cleanup products."
 			for band in interBands:
 				parentBand = band.clone()
-				parentBand.setChildren(band)
+				parentBand.setChildren((band,))
 				band.addParent(parentBand)
 				parentBand.instructions = 'Gel purify ('+band.name+'), followed by short fragment cleanup.'
 				outputBands.append(parentBand)
 		else:
 			for band in interBands:
 				parentBand = band.clone()
-				parentBand.setChildren(band)
+				parentBand.setChildren((band,))
 				band.addParent(parentBand)
 				parentBand.instructions = 'Gel purify ('+band.name+'), followed by standard zymo cleanup.'
 				outputBands.append(parentBand)
 	return outputBands
 
-###checks for presence of regex-encoded feature in seq
+# Description: HasFeature() function checks for presence of regex-encoded feature in seq
 def HasFeature(regex, seq):
 	#Regex must be lower case!
 	return bool( re.search(regex, seq.lower()) ) | bool( re.search(regex, reverseComplement(seq.lower()) ) )
 
-#####Origins#####
+#####Origins Suite: Checks for presence of certain origins of replication#####
 def HasColE2(seq):
 	#has ColE2 origin, data from PMID 16428404
 	regexp = '....tga[gt]ac[ct]agataagcc[tgc]tatcagataacagcgcccttttggcgtctttttgagcacc' 
@@ -1107,6 +1179,7 @@ def HaspUC(seq):
 	regex = 'cccgtagaaaagatcaaaggatcttcttgagatcctttttttctgcgcgtaatctgctgcttgcaaacaaaaaaaccaccgctaccagcggtggtttgtttgccggatcaagagctaccaactctttttccgaaggtaactggcttcagcagagcgcagataccaaatactgtccttctagtgtagccgtagttaggccaccacttcaagaactctgtagcaccgcctacatacctcgctctgctaatcctgttaccagtggctgctgccagtggcgataagtcgtgtcttaccgggttggactcaagacgatagttaccggataaggcgcagcggtcgggctgaacggggggttcgtgcacacagcccagcttggagcgaacgacctacaccgaactgagatacctacagcgtgagcattgagaaagcgccacgcttcccgaagggagaaaggcggacaggtatccggtaagcggcagggtcggaacaggagagcgcacgagggagcttccagggggaaacgcctggtatctttatagtcctgtcgggtttcgccacctctgacttgagcgtcgatttttgtgatgctcgtcaggggggcggagcctatggaaaaacgccagcaacgcggcctttttacggttcctggccttttgctggccttttgctcacat'
 	return HasFeature(regex, seq)
 
+#####Resistance Suite: Checks for presence of certain antibiotic resistance markers#####
 def HasAAFeature(regex, DNAseq):
 	#must be uppercase, checks all six possibilities, fwd, rev x 3 frames
 	seq = DNAseq
@@ -1160,7 +1233,7 @@ class Strain(object):
 		else:
 			self.plasmids = []
 
-#accepts list of dnas and a strain, it should output a list of DNAs that survive the transformation
+# Description: accepts list of dnas and a strain, it should output a list of DNAs that survive the transformation
 # this would completely reciplate the TransformPlateMiniprep cycle, it returns all the DNAs present in the cell
 def TransformPlateMiniprep(DNAs, strain, selection_antibiotic):
 	#strain is an object

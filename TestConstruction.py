@@ -6,10 +6,6 @@ if __name__ == "__main__":
 	PCR = getattr(synbioinformatica,'PCR')
 	Digest = getattr(synbioinformatica,'Digest')
 	Ligate = getattr(synbioinformatica,'Ligate')
-	GelAndZymoPurify = getattr(synbioinformatica,'GelAndZymoPurify')
-	ZymoPurify = getattr(synbioinformatica,'ZymoPurify')
-	TransformPlateMiniprep = getattr(synbioinformatica, 'TransformPlateMiniprep')	
-	EnzymeDictionary = InitializeEnzymes()
 
 
 	olib001 = DNA('GGATCtggtctcGCTAGCGGTAGCGGCAGTagtgcc','primer', 'olib001')
