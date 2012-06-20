@@ -968,6 +968,68 @@ def Ligate(inputDNAs):
 		i = i + 1
 	return products
 
+def ZymoPurify(inputDNAs):
+	if len(inputDNAs) == 0:
+		print 'WARNING: Zymo purification function passed empty input list -- will return empty output'
+		return inputDNAs
+	outputBands = []
+	sizeTuples = []
+	for DNA in inputDNAs:
+		fragSize = len(DNA.sequence)
+		sizeTuples.append((fragSize,DNA))
+	sizeTuples.sort(reverse=True)
+	currentTuple = sizeTuples[0]
+	currentSize = currentTuple[0]
+	while currentSize > 300 and len(sizeTuples) > 1:
+		band = currentTuple[1]
+		parentBand = band.clone()
+		parentBand.setChildren(band)
+		band.addParent(parentBand)
+		parentBand.instructions = 'Perform standard zymo cleanup on ('+band.name+').'
+		outputBands.append(parentBand)
+		sizeTuples.pop(0)
+		currentTuple = sizeTuples[0]
+		currentSize = currentTuple[0]
+	if currentSize > 300:
+		band = currentTuple[1]
+		parentBand = band.clone()
+		parentBand.setChildren(band)
+		band.addParent(parentBand)
+		parentBand.instructions = 'Perform standard zymo cleanup on ('+band.name+').'
+		outputBands.append(parentBand)
+	return outputBands
+
+def ShortFragmentCleanup(inputDNAs):
+	if len(inputDNAs) == 0:
+		print 'WARNING: ShortFragmentCleanup function passed empty input list -- will return empty output'
+		return inputDNAs
+	outputBands = []
+	sizeTuples = []
+	for DNA in inputDNAs:
+		fragSize = len(DNA.sequence)
+		sizeTuples.append((fragSize,DNA))
+	sizeTuples.sort(reverse=True)
+	currentTuple = sizeTuples[0]
+	currentSize = currentTuple[0]
+	while currentSize > 50 and len(sizeTuples) > 1:
+		band = currentTuple[1]
+		parentBand = band.clone()
+		parentBand.setChildren(band)
+		band.addParent(parentBand)
+		parentBand.instructions = 'Perform short fragment cleanup on ('+band.name+').'
+		outputBands.append(parentBand)
+		sizeTuples.pop(0)
+		currentTuple = sizeTuples[0]
+		currentSize = currentTuple[0]
+	if currentSize > 50:
+		band = currentTuple[1]
+		parentBand = band.clone()
+		parentBand.setChildren(band)
+		band.addParent(parentBand)
+		parentBand.instructions = 'Perform short fragment cleanup on ('+band.name+').'
+		outputBands.append(parentBand)
+	return outputBands
+
 def GelAndZymoPurify(inputDNAs, strategy):
 	# sort based on size
 	shortFlag = False
@@ -1056,14 +1118,14 @@ def GelAndZymoPurify(inputDNAs, strategy):
 			print "WARNING: Purification with given strategy '"+strategy+"' yielded short fragments (< 300 bp). Returning short fragment cleanup products."
 			for band in interBands:
 				parentBand = band.clone()
-				parentBand.setChildren(band)
+				parentBand.setChildren((band,))
 				band.addParent(parentBand)
 				parentBand.instructions = 'Gel purify ('+band.name+'), followed by short fragment cleanup.'
 				outputBands.append(parentBand)
 		else:
 			for band in interBands:
 				parentBand = band.clone()
-				parentBand.setChildren(band)
+				parentBand.setChildren((band,))
 				band.addParent(parentBand)
 				parentBand.instructions = 'Gel purify ('+band.name+'), followed by standard zymo cleanup.'
 				outputBands.append(parentBand)
