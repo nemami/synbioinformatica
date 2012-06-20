@@ -6,7 +6,7 @@ if __name__ == "__main__":
 	PCR = getattr(synbioinformatica,'PCR')
 	Digest = getattr(synbioinformatica,'Digest')
 	Ligate = getattr(synbioinformatica,'Ligate')
-	GelPurify = getattr(synbioinformatica,'GelPurify')
+	GelAndZymoPurify = getattr(synbioinformatica,'GelAndZymoPurify')
 	ZymoPurify = getattr(synbioinformatica,'ZymoPurify')
 	TransformPlateMiniprep = getattr(synbioinformatica, 'TransformPlateMiniprep')	
 	EnzymeDictionary = InitializeEnzymes()
@@ -93,8 +93,9 @@ if __name__ == "__main__":
 	prod1 = PCR(olib001, olib002, pth7035K_nd033)
 	print(prod1.sequence)
 	ins = Digest(prod1, [EnzymeDictionary["BsaI"]])
-	vec = Digest(pLEFT, [EnzymeDictionary["BsaI"]])
+	vec_digest = Digest(pLEFT, [EnzymeDictionary["BsaI"]])
 	#Gel purify large band for vec, and pcr purify for ins
+        vec = GelAndZymoPurify(vec_digest,'L')
 	jtk161 = Strain("jtk161", "pUC,P15A,ColE2", "", )
 	
 	ligation_products = Ligate(ins+vec)
