@@ -782,7 +782,6 @@ def DigestBuffer(*str_or_list):
 		ret.append(p)
 		ret.append(best_buff_score)
 	return ret
-
 #accepts two primers and list of input template DNAs
 #todo:implement this with PCR!
 def SOERoundTwo(primer1, primer2, templates):
