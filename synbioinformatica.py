@@ -765,11 +765,13 @@ def DigestBuffer(*str_or_list):
 	best_buff = ""
 	best_buff_score = [0,0,0,0,0]
 	enzdic = EnzymeDictionary()
+	num_enz = 0
 	for e in str_or_list:
 		enz = enzdic[e]
 		best_buff_score = list(x + int(y) for x, y in zip(best_buff_score, enz.buffer_activity))
+		num_enz = num_enz + 1
 	ret = []	
-	if best_buff_score[1] > 150:
+	if best_buff_score[1] >( 75 * num_enz):
 		ret.append(2)
 		ret.append(best_buff_score)
 	else:
