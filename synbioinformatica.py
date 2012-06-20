@@ -44,8 +44,6 @@ def translate( sequence ):
     """Return the translated protein from 'sequence' assuming +1 reading frame"""
     return ''.join([gencode.get(sequence[3*i:3*i+3],'X') for i in range(len(sequence)//3)])
 
-
-
 # Read in all enzymes:
 def EnzymeDictionary():
 	EnzymeDictionary = {}
@@ -53,8 +51,7 @@ def EnzymeDictionary():
 	for line in fh:
 		card = line.rstrip().split('\t')
 		card[0] = re.sub(r'\-','_',card[0])
-		EnzymeDictionary[card[0]] = restrictionEnzyme(card[0],card[1],card[2],card[3],card[4],
-													card[5],card[6],card[7],card[8],card[9])
+		EnzymeDictionary[card[0]] = restrictionEnzyme(card[0],card[1],card[2],card[3],card[4],card[5],card[6],card[7],card[8],card[9])
 	return EnzymeDictionary
 
 # Suffix Tree implementation from: http://chipsndips.livejournal.com/2005/12/07/
@@ -142,11 +139,51 @@ class PrimerError(Exception):
         self.template = template
         self.msg = msg
 
+def PCRErrorHandling(InputTuple):
+	(fwd,matchCount,matchedAlready,nextOrientation,myList,tooShort1,currentPrimer,template) = InputTuple
+	if fwd:
+		if matchCount == 0 & len(myList) > 0:				# no matches in forward direction
+			tooShort1 = True
+		else:
+			tooShort1 = False
+		if matchCount > 1:									# if matches in forward direction more than once
+			if nextOrientation == 2: 							# ... but was supposed to match in reverse direction
+				raise PrimerError(currentPrimer,template,'Primers have same forward (5\'->3\') orientation AND primer anneals to multiple sites in template:')
+			raise PrimerError(currentPrimer,template,'Primer anneals to multiple sites in template:')
+		elif matchCount == 1:								# if matches in the forward direction exactly once
+			if nextOrientation == 2: 							# ... but was supposed to match in reverse direction
+				raise PrimerError(currentPrimer,template,'Primers have same forward (5\'->3\') orientation')
+			matchedAlready = 1
+		return (matchedAlready,tooShort1)
+	else:
+		if matchCount == 0 & len(myList) > 0:				# no matches in forward direction
+			tooShort2 = True
+		else:
+			tooShort2 = False
+		if matchCount > 1:									# if matches in reverse direction more than once
+			if matchedAlready == 1:								# ... and already matched in forward direction
+				if nextOrientation == 1: 							# ... but was supposed to match in forward direction
+					raise PrimerError(currentPrimer,template,'Primers have same reverse (3\'->5\') orientation AND primer anneals to multiple sites in template AND it primes in both orientations:')
+				raise PrimerError(currentPrimer,template,'Primer anneals to multiple sites in template AND it primes in both orientations:')
+			if nextOrientation == 1: 
+				raise PrimerError(currentPrimer,template,'Primers have same reverse (3\'->5\') orientation AND primer anneals to multiple sites in template:')
+			raise PrimerError(currentPrimer,template,'Primer anneals to multiple sites in template:')
+		elif matchCount == 1: 								# if matches in the reverse direction exactly once
+			if matchedAlready == 1:								# ... and already matched in forward direction
+				if nextOrientation == 1: 							# ... but was supposed to match in forward direction
+					raise PrimerError(currentPrimer,template,'Primers have same reverse (3\'->5\') orientation AND primer primes in both orientations:')
+				raise PrimerError(currentPrimer,template,'Primer primes in both orientations:')
+			else:
+				matchedAlready = 2
+		if matchedAlready == 0:								# if no matches
+			if tooShort1 and tooShort2:							# ... it may be because the annealing region has a tm < 45 C
+				raise PrimerError(currentPrimer, template,'Primer is too short and does not anneal')
+			raise PrimerError(currentPrimer,template,'Primer does not prime in either orientation:') 	# ... or not.
+		return (matchedAlready, tooShort2)
+
 #Note: PCR() product is not case preserving
 def PCR(primer1DNA, primer2DNA, templateDNA):
-	template = templateDNA.sequence + '$'
-	primer_1 = primer1DNA.sequence + '$'
-	primer_2 = primer2DNA.sequence + '$'
+	(template, primer_1, primer_2) = (templateDNA.sequence + '$', primer1DNA.sequence + '$', primer2DNA.sequence + '$')
 	(fwdTM, revTM) = (0,0)
 	inputTuple = (primer1DNA, primer2DNA, templateDNA)
 	try:
@@ -161,25 +198,12 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
 			first = re.compile(fwdTuple[0], re.IGNORECASE)
 			fwd_stub = currentPrimer[0:len(currentPrimer)-len(fwdTuple[0])-1]
 			fList = first.findall(template)
-			matchCount = 0
-			matchedAlready = 0
-			start = 0
-			stop = 0
+			(matchCount, matchedAlready, start, stop) = (0,0,0,0)
 			for match in fList:
 				if primerTm(match) >= 45:						# switched this to Tm >= 45 C for matches
 					matchCount = matchCount + 1
-			if matchCount == 0 & len(fList) > 0:				# no matches in forward direction
-				tooShort1 = True
-			else:
-				tooShort1 = False
-			if matchCount > 1:									# if matches in forward direction more than once
-				if nextOrientation == 2: 							# ... but was supposed to match in reverse direction
-					raise PrimerError(currentPrimer,template,'Primers have same forward (5\'->3\') orientation AND primer anneals to multiple sites in template:')
-				raise PrimerError(currentPrimer,template,'Primer anneals to multiple sites in template:')
-			elif matchCount == 1:								# if matches in the forward direction exactly once
-				if nextOrientation == 2: 							# ... but was supposed to match in reverse direction
-					raise PrimerError(currentPrimer,template,'Primers have same forward (5\'->3\') orientation')
-				matchedAlready = 1
+			tooShort1 = False # Default
+			(matchedAlready,tooShort1) = PCRErrorHandling((1,matchCount,matchedAlready,nextOrientation,fList,tooShort1,currentPrimer,template))
 			revcomp = reverseComplement(currentPrimer)
 			revMatch = LCS(template.upper(),revcomp.upper()+'$')
 			revTuple = revMatch.LongestCommonSubstring()
@@ -190,29 +214,7 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
 			for match in lList:
 				if primerTm(match) >= 45:						# switched this to Tm >= 45 C for matches
 					matchCount = matchCount + 1
-			if matchCount == 0 & len(lList) > 0:				# no matches in forward direction
-				tooShort2 = True
-			else:
-				tooShort2 = False
-			if matchCount > 1:									# if matches in reverse direction more than once
-				if matchedAlready == 1:								# ... and already matched in forward direction
-					if nextOrientation == 1: 							# ... but was supposed to match in forward direction
-						raise PrimerError(currentPrimer,template,'Primers have same reverse (3\'->5\') orientation AND primer anneals to multiple sites in template AND it primes in both orientations:')
-					raise PrimerError(currentPrimer,template,'Primer anneals to multiple sites in template AND it primes in both orientations:')
-				if nextOrientation == 1: 
-					raise PrimerError(currentPrimer,template,'Primers have same reverse (3\'->5\') orientation AND primer anneals to multiple sites in template:')
-				raise PrimerError(currentPrimer,template,'Primer anneals to multiple sites in template:')
-			elif matchCount == 1: 								# if matches in the reverse direction exactly once
-				if matchedAlready == 1:								# ... and already matched in forward direction
-					if nextOrientation == 1: 							# ... but was supposed to match in forward direction
-						raise PrimerError(currentPrimer,template,'Primers have same reverse (3\'->5\') orientation AND primer primes in both orientations:')
-					raise PrimerError(currentPrimer,template,'Primer primes in both orientations:')
-				else:
-					matchedAlready = 2
-			if matchedAlready == 0:								# if no matches
-				if tooShort1 and tooShort2:							# ... it may be because the annealing region has a tm < 45 C
-					raise PrimerError(currentPrimer, template,'Primer is too short and does not anneal')
-				raise PrimerError(currentPrimer,template,'Primer does not prime in either orientation:') 	# ... or not.
+			(matchedAlready,tooShort2) = PCRErrorHandling((0,matchCount,matchedAlready,nextOrientation,lList,tooShort1,currentPrimer,template))
 			if matchedAlready == 1:
 				indices[counter] = fwdTuple[1]
 				counter +=  1
