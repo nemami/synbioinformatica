@@ -761,7 +761,6 @@ def DigestBuffer(*str_or_list):
 		best_buff_score = list(x + int(y) for x, y in zip(best_buff_score, enz.buffer_activity))
 	print best_buff_score
 
-DigestBuffer("BglII", "BamHI")
 #accepts two primers and list of input template DNAs
 #todo:implement this with PCR!
 def SOERoundTwo(primer1, primer2, templates):
