@@ -114,7 +114,11 @@ if __name__ == "__main__":
 	#product should be TAAAGGTCTCGCTAGCGGTAGCGGCAGTAGTGCCAATGAAAAcaacctgatttggatcgatcttgagatgaccggtctggatcccgagcgcgatcgcattattgagattgccacgctggtgaccgatgccnnknnkaatattctggcagaagggccgaccattgcagtacaccagtctgatgaacagctggcgctgatggatgactggaacgtgcgcacccataccgccagcgggctggtagagcgcgtgaaagcgagcacgatgggcgatcgggaagctgaactggcaacgctcgaatttttaaaacagtgggtgcctgcgggaaaatcgccgatttgcggtaacagcatcggtcaggaccgtcgtttcctgtttaaatacatgccggagctggaagcctacttccactaccgttatctcgatgtcagcaccctgaaagagnnkgcgcgccgcnnkAAGCCGGAAATTCTGGATGGTTAGGCATCTCCTCGGATCCGAGACCTTT
 	#inside the pth7035K vector (nhei/bamhi positions)
 	print 'Miniprep product:'
-	LIB002_LEFT_RND1[0].prettyPrint()
+	print LIB002_LEFT_RND1[0].sequence
 	prod2 = PCR(olib003, olib004, LIB002_LEFT_RND1[0])
-	print 'Final amplification product:'
-	prod2.prettyPrint()
+	print 'Round2 PCR product:'
+	print prod2.sequence
+	
+	rnd2_temp = Ligate( Digest(prod2, [EnzymeDictionary["BsaI"]]) )
+	for i in rnd2_temp:
+		i.prettyPrint()
