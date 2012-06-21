@@ -273,6 +273,10 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
 def reverseComplement(sequence):
   	return "".join([complement_alphabet.get(nucleotide, '') for nucleotide in sequence[::-1]])
 
+# Description: reverse() is case preserving string reversal
+def reverse(sequence):
+	return sequence[::-1]
+
 # Description: Complement() is case preserving complementation of nucleotide sequences
 def Complement(sequence):
   	return "".join([complement_alphabet.get(nucleotide, '') for nucleotide in sequence[0:]])
@@ -418,6 +422,8 @@ def Digest(InputDNA, Enzymes):
 					print 'WARNING: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input with length '+str(totalLength)
 				else:
 					pass
+				site = site + (enzyme, )
+				indices.append(site)
 			# WARNING: restriction index out of bounds exception
 			elif InputDNA.topology == 'linear' and site[2] == 'antisense' and site[1] - max(enzyme.bottom_strand_offset,enzyme.top_strand_offset) < 0:
 				print 'WARNING: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input with length '+str(totalLength)
@@ -891,7 +897,7 @@ def Ligate(inputDNAs):
 	i = 0
 	while i < len(inputDNAs):
 		fragOne = inputDNAs[i]
-		j = i
+		j = i + 1
 		while j < len(inputDNAs):
 			fragTwo = inputDNAs[j]
 			(LTL,LTR,LBL,LBR) = SetFlags(fragOne)
@@ -907,9 +913,9 @@ def Ligate(inputDNAs):
 						fragTwo.addParent(ligated)
 						ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
 						products.append(ligated)
-				if fragOne.topRightOverhang.sequence.upper() == Complement(fragTwo.topRightOverhang.sequence).upper():
-					if fragOne.bottomLeftOverhang.sequence.upper() == Complement(fragTwo.bottomLeftOverhang.sequence).upper():
-						ligated = DNA(fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence)+reverseComplement(fragTwo.bottomLeftOverhang.sequence),'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
+				if fragOne.topRightOverhang.sequence.upper() == reverseComplement(fragTwo.topRightOverhang.sequence).upper():
+					if fragOne.bottomLeftOverhang.sequence.upper() == reverseComplement(fragTwo.bottomLeftOverhang.sequence).upper():
+						ligated = DNA(fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence)+reverse(fragTwo.bottomLeftOverhang.sequence),'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
 						ligated.setChildren((fragOne, fragTwo))
 						fragOne.addParent(ligated)
 						fragTwo.addParent(ligated)
@@ -920,7 +926,7 @@ def Ligate(inputDNAs):
 					# then you know it must have LTL
 					if RTR:
 						# then, if it is to ligate, it must have compatible RTL
-						if fragOne.topRightOverhang.sequence.upper() == Complement(fragTwo.topRightOverhang.sequence).upper():
+						if fragOne.topRightOverhang.sequence.upper() == reverseComplement(fragTwo.topRightOverhang.sequence).upper():
 							if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.topLeftOverhang.sequence).upper():
 								ligated = DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence),'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
 								ligated.setChildren((fragOne, fragTwo))
@@ -942,7 +948,7 @@ def Ligate(inputDNAs):
 					# you know it has LBL as its 3 and LBR as its 5
 					if RTR:
 					# then, if it is to ligate, it must have compatible RTL
-						if fragTwo.topRightOverhang.sequence.upper() == reverseComplement(fragOne.bottomLeftOverhang.sequence).upper():
+						if fragTwo.topRightOverhang.sequence.upper() == Complement(fragOne.bottomLeftOverhang.sequence).upper():
 							if fragTwo.topLeftOverhang.sequence.upper() == Complement(fragOne.topLeftOverhang.sequence).upper():
 								ligated = DNA(fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence+fragTwo.topRightOverhang.sequence,'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
 								ligated.setChildren((fragOne, fragTwo))
@@ -954,7 +960,7 @@ def Ligate(inputDNAs):
 						# to ligate, it must have RBL and RBR
 						if fragOne.bottomRightOverhang.sequence.upper() == reverseComplement(fragTwo.bottomRightOverhang.sequence).upper():
 							if fragOne.bottomLeftOverhang.sequence.upper() == reverseComplement(fragTwo.bottomLeftOverhang.sequence).upper():
-								ligated = DNA(Complement(fragOne.bottomLeftOverhang.sequence)+fragOne.sequence+Complement(fragOne.bottomRightOverhang.sequence)+fragTwo.sequence,'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
+								ligated = DNA(Complement(fragOne.bottomLeftOverhang.sequence)+fragOne.sequence+Complement(fragOne.bottomRightOverhang.sequence)+reverseComplement(fragTwo.sequence),'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
 								ligated.setChildren((fragOne, fragTwo))
 								fragOne.addParent(ligated)
 								fragTwo.addParent(ligated)
@@ -969,9 +975,9 @@ def Ligate(inputDNAs):
 						fragTwo.addParent(ligated)
 						ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
 						products.append(ligated)
-				if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.topLeftOverhang.sequence).upper():
-					if fragOne.bottomRightOverhang.sequence.upper() == Complement(fragTwo.bottomRightOverhang.sequence.upper()):
-						ligated = DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+reverseComplement(fragTwo.sequence)+reverseComplement(fragTwo.topLeftOverhang.sequence),'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')		
+				if fragOne.topLeftOverhang.sequence.upper() == reverseComplement(fragTwo.topLeftOverhang.sequence).upper():
+					if fragOne.bottomRightOverhang.sequence.upper() == reverseComplement(fragTwo.bottomRightOverhang.sequence.upper()):
+						ligated = DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+reverse(fragTwo.bottomRightOverhang.sequence)+reverseComplement(fragTwo.sequence),'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')		
 						ligated.setChildren((fragOne, fragTwo))
 						fragOne.addParent(ligated)
 						fragTwo.addParent(ligated)
@@ -1151,8 +1157,6 @@ def GelAndZymoPurify(inputDNAs, strategy):
 		else:
 			for band in interBands:
 				parentBand = band.clone()
-				print 'parent Band:'
-				parentBand.prettyPrint()
 				parentBand.setChildren((band,))
 				band.addParent(parentBand)
 				parentBand.instructions = 'Gel purify ('+band.name+'), followed by standard zymo cleanup.'
