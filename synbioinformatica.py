@@ -433,9 +433,9 @@ def Digest(InputDNA, Enzymes):
 	while n < len(indices):
 		try:
 			(currentTuple, nextTuple) = (indices[n], indices[n+1])
-			(currentStart, nextStart) = (currentTuple[0], nextTuple[0])
+			(currentStart, nextStart, currentEnzyme, nextEnzyme) = (currentTuple[0], nextTuple[0], currentTuple[3], nextTuple[3])
 			filtered.append(indices[n])
-			if currentStart + len(enzyme.alpha_only_site) >= nextStart:
+			if currentStart + len(currentEnzyme.alpha_only_site) >= nextStart:
 				currentIndex = indices[n+1]
 				if currentIndex[0] == len(InputDNA.sequence):
 					pass
@@ -1134,6 +1134,12 @@ def GelAndZymoPurify(inputDNAs, strategy):
 	else:
 		if lostFlag:
 			print "WARNING: Purification with given strategy '"+strategy+"' returned at least one short fragment (< 50 bp) that was lost. Returning remaining products."
+			for band in interBands:
+				parentBand = band.clone()
+				parentBand.setChildren((band,))
+				band.addParent(parentBand)
+				parentBand.instructions = 'Gel purify ('+band.name+'), followed by short fragment cleanup.'
+				outputBands.append(parentBand)
 		elif shortFlag:
 			print "WARNING: Purification with given strategy '"+strategy+"' yielded short fragments (< 300 bp). Returning short fragment cleanup products."
 			for band in interBands:
@@ -1145,6 +1151,8 @@ def GelAndZymoPurify(inputDNAs, strategy):
 		else:
 			for band in interBands:
 				parentBand = band.clone()
+				print 'parent Band:'
+				parentBand.prettyPrint()
 				parentBand.setChildren((band,))
 				band.addParent(parentBand)
 				parentBand.instructions = 'Gel purify ('+band.name+'), followed by standard zymo cleanup.'
