@@ -1263,7 +1263,7 @@ def TransformPlateMiniprep(DNAs, strain, selection_antibiotic):
 			for resistance in resistances:
 				if not(resistance in strain.resistance):
 					newR = True
-					success_msg += "Use "+resistance
+					success_msg += "Transformation successful -- use "+resistance+" antibiotic selection."
 			for replicon in replicons:
 				#has the pir/repA necessary for ColE2/R6K?
 				if replicon in strain.replication:
