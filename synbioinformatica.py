@@ -874,10 +874,8 @@ def Ligate(inputDNAs):
 		(TL,TR,BL,BR) = SetFlags(fragment)
 		if fragment.DNAclass != 'digest':
 			print 'WARNING: For ligation reaction, invalid input molecule removed -- ligation input DNA objects must be of class \'digest\'.'
-			inputDNAs.remove(fragment)
 		elif TL+TR+BL+BR == 1 or TL+TR+BL+BR == 0:
 			print 'WARNING: For ligation reaction, invalid input molecule removed -- blunt end ligation inputs disallowed'
-			inputDNAs.remove(fragment)
 		if fragment.topLeftOverhang.sequence != '':
 			if fragment.topLeftOverhang.sequence.lower() == Complement(fragment.bottomRightOverhang.sequence.lower()):
 				ligated = DNA(fragment.topLeftOverhang.sequence+fragment.sequence,'plasmid',fragment.name+' self-ligation')
