@@ -5,6 +5,7 @@ import sys, random, re, math, difflib
 from decimal import *
 
 # TODO: context-specific warnings + DNA names
+# TODO: Blunt end ligation, distinction between PCR product and phosphorylated blunt end digests
 # TODO: hashing and recognition of redundant digest / ligation products
 # TODO: for PCR, identification of primers on the edge of a circular sequence
 
@@ -202,7 +203,10 @@ def AssemblyTreeRelationships(inputTuple, parent, fwdTM, revTM):
 	for child in inputTuple:
 		child.addParent(parent)
 	parent.setChildren(inputTuple)
-	thermoCycle = str(int(round(len(parent.sequence)/1000+0.5)))+'K'+str(int(round(max(fwdTM,revTM))))
+	intVal = int(round(len(parent.sequence)/1000+0.5))
+	parent.setTimeStep(intVal)
+	parent.addMaterials(['Polymerase','dNTP mix','Polymerase buffer'])
+	thermoCycle = str(intVal)+'K'+str(int(round(max(fwdTM,revTM))))
 	parent.instructions = thermoCycle+' PCR template '+templateDNA.name+' with primers '+primer1DNA.name+', '+primer2DNA.name
 	return parent
 
@@ -568,6 +572,8 @@ def Digest(InputDNA, Enzymes):
 			bestBuffer = 'NEB'+str(bestBuffer)
 		else:
 			bestBuffer = 'Buffer EcoRI' 
+		frag.setTimeStep(1)
+		frag.addMaterials([bestBuffer,'ddH20'])
 		frag.instructions = 'Digest ('+InputDNA.name+') with '+enzNames+' at '+incubationTemp+'C in '+bestBuffer+' for 1 hour.'
 	return frags
 
@@ -592,16 +598,18 @@ class DNA(object):
 		self.description = "SpecR pUC"							 #this is for humans to read
 		self.dam_methylated = True
 		# self.overhang = "circular" #blunt, 3', 5', circular... should be a class in itself?
-		self.topLeftOverhang = ""
-		self.bottomLeftOverhang = ""
-		self.topRightOverhang = ""
-		self.bottomRightOverhang = ""
+		self.topLeftOverhang = Overhang('')
+		self.bottomLeftOverhang = Overhang('')
+		self.topRightOverhang = Overhang('')
+		self.bottomRightOverhang = Overhang('')
 		#PCR product, miniprep, genomic DNA
 		self.DNAclass = DNAclass
 		self.provenance = ""
 		self.parents = []
 		self.children = ()
 		self.instructions = ""
+		self.materials = []
+		self.timeStep = 0
 		#Here is the linked list references for building up action-chains
 		# an action chain would be something like do PCR on day 1, do transformation on day 2, etc
 		self.head = None
@@ -617,6 +625,10 @@ class DNA(object):
 		#code to handle the overhangs & other object attributes
 	def addParent(self, DNA):
 		self.parents.append(DNA)
+	def addMaterials(self, materialsList):
+		self.materials += materialsList
+	def setTimeStep(self, timeStep):
+		self.timeStep = timeStep
 	def setChildren(self, inputDNAs):
 		self.children = inputDNAs
 	def find(self, string):
@@ -874,13 +886,19 @@ def Ligate(inputDNAs):
 		(TL,TR,BL,BR) = SetFlags(fragment)
 		if fragment.DNAclass != 'digest':
 			print 'WARNING: For ligation reaction, invalid input molecule removed -- ligation input DNA objects must be of class \'digest\'.'
-		elif TL+TR+BL+BR == 1 or TL+TR+BL+BR == 0:
-			print 'WARNING: For ligation reaction, invalid input molecule removed -- blunt end ligation inputs disallowed'
-		if fragment.topLeftOverhang.sequence != '':
+		elif TL+TR+BL+BR == 1:
+			pass
+		elif TL+TR+BL+BR == 0:
+			# blunt end self ligation case --> need to identify that both sides were digested (i.e. both ecoRV blunt ends)
+			# and then return circular product of same sequence.
+			pass
+		elif fragment.topLeftOverhang.sequence != '':
 			if fragment.topLeftOverhang.sequence.lower() == Complement(fragment.bottomRightOverhang.sequence.lower()):
 				ligated = DNA(fragment.topLeftOverhang.sequence+fragment.sequence,'plasmid',fragment.name+' self-ligation')
 				ligated.setChildren((fragment, ))
 				fragment.addParent(ligated)
+				ligated.setTimeStep(.5)
+				ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
 				ligated.instructions = 'Self-ligate ('+fragment.name+') with DNA ligase for 30 minutes at room-temperature.'
 				products.append(ligated)
 		elif fragment.bottomLeftOverhang.sequence != '':
@@ -888,6 +906,8 @@ def Ligate(inputDNAs):
 				ligated = DNA(fragment.sequence+fragment.topRightOverhang.sequence,'plasmid',fragment.name+' self-ligation')
 				ligated.setChildren((fragment, ))
 				fragment.addParent(ligated)
+				ligated.setTimeStep(.5)
+				ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
 				ligated.instructions = 'Self-ligate ('+fragment.name+') with DNA ligase for 30 minutes at room-temperature.'
 				products.append(ligated)
 	if len(products) > 0 or len(inputDNAs) == 1:
@@ -909,6 +929,8 @@ def Ligate(inputDNAs):
 						ligated.setChildren((fragOne, fragTwo))
 						fragOne.addParent(ligated)
 						fragTwo.addParent(ligated)
+						ligated.setTimeStep(.5)
+						ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
 						ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
 						products.append(ligated)
 				if fragOne.topRightOverhang.sequence.upper() == reverseComplement(fragTwo.topRightOverhang.sequence).upper():
@@ -917,6 +939,8 @@ def Ligate(inputDNAs):
 						ligated.setChildren((fragOne, fragTwo))
 						fragOne.addParent(ligated)
 						fragTwo.addParent(ligated)
+						ligated.setTimeStep(.5)
+						ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
 						ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
 						products.append(ligated)
 			elif first3 == 1:
@@ -930,6 +954,8 @@ def Ligate(inputDNAs):
 								ligated.setChildren((fragOne, fragTwo))
 								fragOne.addParent(ligated)
 								fragTwo.addParent(ligated)
+								ligated.setTimeStep(.5)
+								ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
 								ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
 								products.append(ligated)
 					else:
@@ -940,6 +966,8 @@ def Ligate(inputDNAs):
 								ligated.setChildren((fragOne, fragTwo))
 								fragOne.addParent(ligated)
 								fragTwo.addParent(ligated)
+								ligated.setTimeStep(.5)
+								ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
 								ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
 								products.append(ligated)
 				else:
@@ -952,6 +980,8 @@ def Ligate(inputDNAs):
 								ligated.setChildren((fragOne, fragTwo))
 								fragOne.addParent(ligated)
 								fragTwo.addParent(ligated)
+								ligated.setTimeStep(.5)
+								ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
 								ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
 								products.append(ligated)
 					else:
@@ -962,6 +992,8 @@ def Ligate(inputDNAs):
 								ligated.setChildren((fragOne, fragTwo))
 								fragOne.addParent(ligated)
 								fragTwo.addParent(ligated)
+								ligated.setTimeStep(.5)
+								ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
 								ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
 								products.append(ligated)
 			else:
@@ -971,6 +1003,8 @@ def Ligate(inputDNAs):
 						ligated.setChildren((fragOne, fragTwo))
 						fragOne.addParent(ligated)
 						fragTwo.addParent(ligated)
+						ligated.setTimeStep(.5)
+						ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
 						ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
 						products.append(ligated)
 				if fragOne.topLeftOverhang.sequence.upper() == reverseComplement(fragTwo.topLeftOverhang.sequence).upper():
@@ -979,6 +1013,8 @@ def Ligate(inputDNAs):
 						ligated.setChildren((fragOne, fragTwo))
 						fragOne.addParent(ligated)
 						fragTwo.addParent(ligated)
+						ligated.setTimeStep(.5)
+						ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
 						ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
 						products.append(ligated)
 			j = j + 1
@@ -1004,6 +1040,8 @@ def ZymoPurify(inputDNAs):
 		parentBand = band.clone()
 		parentBand.setChildren(band)
 		band.addParent(parentBand)
+		parentBand.setTimeStep(.5)
+		parentBand.addMaterials(['Zymo Column','Buffer PE','ddH20'])
 		parentBand.instructions = 'Perform standard zymo cleanup on ('+band.name+').'
 		outputBands.append(parentBand)
 		sizeTuples.pop(0)
@@ -1014,6 +1052,8 @@ def ZymoPurify(inputDNAs):
 		parentBand = band.clone()
 		parentBand.setChildren(band)
 		band.addParent(parentBand)
+		parentBand.setTimeStep(.5)
+		parentBand.addMaterials(['Zymo Column','Buffer PE','ddH20'])
 		parentBand.instructions = 'Perform standard zymo cleanup on ('+band.name+').'
 		outputBands.append(parentBand)
 	return outputBands
@@ -1037,6 +1077,8 @@ def ShortFragmentCleanup(inputDNAs):
 		parentBand = band.clone()
 		parentBand.setChildren(band)
 		band.addParent(parentBand)
+		parentBand.setTimeStep(.5)
+		parentBand.addMaterials(['Zymo Column','Buffer PE','ddH20','Ethanol/Isopropanol'])
 		parentBand.instructions = 'Perform short fragment cleanup on ('+band.name+').'
 		outputBands.append(parentBand)
 		sizeTuples.pop(0)
@@ -1047,6 +1089,8 @@ def ShortFragmentCleanup(inputDNAs):
 		parentBand = band.clone()
 		parentBand.setChildren(band)
 		band.addParent(parentBand)
+		parentBand.setTimeStep(.5)
+		parentBand.addMaterials(['Zymo Column','Buffer PE','ddH20','Ethanol/Isopropanol'])
 		parentBand.instructions = 'Perform short fragment cleanup on ('+band.name+').'
 		outputBands.append(parentBand)
 	return outputBands
@@ -1142,6 +1186,8 @@ def GelAndZymoPurify(inputDNAs, strategy):
 				parentBand = band.clone()
 				parentBand.setChildren((band,))
 				band.addParent(parentBand)
+				parentBand.setTimeStep(1)
+				parentBand.addMaterials(['Zymo Column','Buffer ADB','Buffer PE','ddH20'])
 				parentBand.instructions = 'Gel purify ('+band.name+'), followed by short fragment cleanup.'
 				outputBands.append(parentBand)
 		elif shortFlag:
@@ -1150,6 +1196,8 @@ def GelAndZymoPurify(inputDNAs, strategy):
 				parentBand = band.clone()
 				parentBand.setChildren((band,))
 				band.addParent(parentBand)
+				parentBand.setTimeStep(1)
+				parentBand.addMaterials(['Zymo Column','Buffer ADB','Buffer PE','ddH20','Ethanol/Isopropanol'])
 				parentBand.instructions = 'Gel purify ('+band.name+'), followed by short fragment cleanup.'
 				outputBands.append(parentBand)
 		else:
@@ -1157,6 +1205,8 @@ def GelAndZymoPurify(inputDNAs, strategy):
 				parentBand = band.clone()
 				parentBand.setChildren((band,))
 				band.addParent(parentBand)
+				parentBand.setTimeStep(1)
+				parentBand.addMaterials(['Zymo Column','Buffer ADB','Buffer PE','ddH20'])
 				parentBand.instructions = 'Gel purify ('+band.name+'), followed by standard zymo cleanup.'
 				outputBands.append(parentBand)
 	return outputBands
@@ -1274,6 +1324,11 @@ def TransformPlateMiniprep(DNAs, strain, selection_antibiotic):
 				if not(replicon in existing_plasmids ):
 					no_existing_plasmid = True
 			if(newR & replicon_ok & no_existing_plasmid):
+				parent = dna.clone()
+				parent.setChildren((dna, ))
+				dna.addParent(parent)
+				parent.setTimeStep(24)
+				parent.addMaterials(['Buffers P1,P2,N3,PB,PE','Miniprep column',resistance[:-1]+' LB agar plates','LB '+resistance[:-1]+' media'])
 				transformed.append(dna)	
 				print success_msg
 			else:
@@ -1285,7 +1340,7 @@ def TransformPlateMiniprep(DNAs, strain, selection_antibiotic):
 					print "Transformed plasmid replicon competes with existing plasmid in strain"
 	if len(transformed)<1:
 		print "No DNAs successfully transformed.  DNAs may be linear."
-        return transformed
+	return transformed
 
 yes = DNA('GATCCtaaCTCGAcgtgcaggcttcctcgctcactgactcgctgcgctcggtcgttcggctgcggcgagcggtatcagctcactcaaaggcggtaatCAATTCGACCCAGCTTTCTTGTACAAAGTTGGCATTATAAAAAATAATTGCTCATCAATTTGTTGCAACGAACAGGTCACTATCAGTCAAAATAAAATCATTATTTGCCATCCAGCTGATATCCCCTATAGTGAGTCGTATTACATGGTCATAGCTGTTTCCTGGCAGCTCTGGCCCGTGTCTCAAAATCTCTGATGTTACATTGCACAAGATAAAAATATATCATCATGCCTCCTCTAGACCAGCCAGGACAGAAATGCCTCGACTTCGCTGCTGCCCAAGGTTGCCGGGTGACGCACACCGTGGAAACGGATGAAGGCACGAACCCAGTGGACATAAGCCTGTTCGGTTCGTAAGCTGTAATGCAAGTAGCGTATGCGCTCACGCAACTGGTCCAGAACCTTGACCGAACGCAGCGGTGGTAACGGCGCAGTGGCGGTTTTCATGGCTTGTTATGACTGTTTTTTTGGGGTACAGTCTATGCCTCGGGCATCCAAGCAGCAAGCGCGTTACGCCGTGGGTCGATGTTTGATGTTATGGAGCAGCAACGATGTTACGCAGCAGGGCAGTCGCCCTAAAACAAAGTTAAACATCATGAGGGAAGCGGTGATCGCCGAAGTATCGACTCAACTATCAGAGGTAGTTGGCGTCATCGAGCGCCATCTCGAACCGACGTTGCTGGCCGTACATTTGTACGGCTCCGCAGTGGATGGCGGCCTGAAGCCACACAGTGATATTGATTTGCTGGTTACGGTGACCGTAAGGCTTGATGAAACAACGCGGCGAGCTTTGATCAACGACCTTTTGGAAACTTCGGCTTCCCCTGGAGAGAGCGAGATTCTCCGCGCTGTAGAAGTCACCATTGTTGTGCACGACGACATCATTCCGTGGCGTTATCCAGCTAAGCGCGAACTGCAATTTGGAGAATGGCAGCGCAATGACATTCTTGCAGGTATCTTCGAGCCAGCCACGATCGACATTGATCTGGCTATCTTGCTGACAAAAGCAAGAGAACATAGCGTTGCCTTGGTAGGTCCAGCGGCGGAGGAACTCTTTGATCCGGTTCCTGAACAGGATCTATTTGAGGCGCTAAATGAAACCTTAACGCTATGGAACTCGCCGCCCGACTGGGCTGGCGATGAGCGAAATGTAGTGCTTACGTTGTCCCGCATTTGGTACAGCGCAGTAACCGGCAAAATCGCGCCGAAGGATGTCGCTGCCGACTGGGCAATGGAGCGCCTGCCGGCCCAGTATCAGCCCGTCATACTTGAAGCTAGACAGGCTTATCTTGGACAAGAAGAAGATCGCTTGGCCTCGCGCGCAGATCAGTTGGAAGAATTTGTCCACTACGTGAAAGGCGAGATCACCAAGGTAGTCGGCAAATAACCCTCGAGCCACCCATGACCAAAATCCCTTAACGTGAGTTACGCGTCGTTCCACTGAGCGTCAGACCCCGTAGAAAAGATCAAAGGATCTTCTTGAGATCCTTTTTTTCTGCGCGTAATCTGCTGCTTGCAAACAAAAAAACCACCGCTACCAGCGGTGGTTTGTTTGCCGGATCAAGAGCTACCAACTCTTTTTCCGAAGGTAACTGGCTTCAGCAGAGCGCAGATACCAAATACTGTCCTTCTAGTGTAGCCGTAGTTAGGCCACCACTTCAAGAACTCTGTAGCACCGCCTACATACCTCGCTCTGCTAATCCTGTTACCAGTGGCTGCTGCCAGTGGCGATAAGTCGTGTCTTACCGGGTTGGACTCAAGACGATAGTTACCGGATAAGGCGCAGCGGTCGGGCTGAACGGGGGGTTCGTGCACACAGCCCAGCTTGGAGCGAACGACCTACACCGAACTGAGATACCTACAGCGTGAGCATTGAGAAAGCGCCACGCTTCCCGAAGGGAGAAAGGCGGACAGGTATCCGGTAAGCGGCAGGGTCGGAACAGGAGAGCGCACGAGGGAGCTTCCAGGGGGAAACGCCTGGTATCTTTATAGTCCTGTCGGGTTTCGCCACCTCTGACTTGAGCGTCGATTTTTGTGATGCTCGTCAGGGGGGCGGAGCCTATGGAAAAACGCCAGCAACGCGGCCTTTTTACGGTTCCTGGCCTTTTGCTGGCCTTTTGCTCACATGTTCTTTCCTGCGTTATCCCCTGATTCTGTGGATAACCGTcctaggTGTAAAACGACGGCCAGTCTTAAGCTCGGGCCCCAAATAATGATTTTATTTTGACTGATAGTGACCTGTTCGTTGCAACAAATTGATGAGCAATGCTTTTTTATAATGCCAACTTTGTACAAAAAAGCAGGCTCCGAATTGgtatcacgaggcagaatttcagataaaaaaaatccttagctttcgctaaggatgatttctgGAATTCATGA', 'plasmid', 'yes Plasmid')
 pth2993 = DNA('GATCTctatgctactccatcgagccgtcaattgtctgattcgttaccaattatgacaacttgacggctacatcattcactttttcttcacaaccggcacggaactcgctcgggctggccccggtgcattttttaaatacccgcgagaaatagagttgatcgtcaaaaccaacattgcgaccgacggtggcgataggcatccgggtggtgctcaaaagcagcttcgcctggctgatacgttggtcctcgcgccagcttaagacgctaatccctaactgctggcggaaaagatgtgacagacgcgacggcgacaagcaaacatgctgtgcgacgctggcgatatcaaaattgctgtctgccaggtgatcgctgatgtactgacaagcctcgcgtacccgattatccatcggtggatggagcgactcgttaatcgcttccatgcgccgcagtaacaattgctcaagcagatttatcgccagcagctccgaatagcgcccttccccttgcccggcgttaatgatttgcccaaacaggtcgctgaaatgcggctggtgcgcttcatccgggcgaaagaaccccgtattggcaaatattgacggccagttaagccattcatgccagtaggcgcgcggacgaaagtaaacccactggtgataccattcgcgagcctccggatgacgaccgtagtgatgaatctctcctggcgggaacagcaaaatatcacccggtcggcaaacaaattctcgtccctgatttttcaccaccccctgaccgcgaatggtgagattgagaatataacctttcattcccagcggtcggtcgataaaaaaatcgagataaccgttggcctcaatcggcgttaaacccgccaccagatgggcattaaacgagtatcccggcagcaggggatcattttgcgcttcagccatacttttcatactcccgccattcagagaagaaaccaattgtccatattgcatcagacattgccgtcactgcgtcttttactggctcttctcgctaaccaaaccggtaaccccgcttattaaaagcattctgtaacaaagcgggaccaaagccatgacaaaaacgcgtaacaaaagtgtctataatcacggcagaaaagtccacattgattatttgcacggcgtcacactttgctatgccatagcatttttatccataagattagcggatcttacctgacgctttttatcgcaactctCTACTGTTTCTCCATACCCgGATCTGGAGAGATGCCGGAGCGGCTGAACGGACCGGTCTCTAAAACCGGAGTAGGGGCAACTCTACCGGGGGTTCAAATCCCCCTCTCTCCGCCACTGCAGATCCTTAGCGAAAGCTAAGGATTTTTTTTGGATCCtaaCTCGCTCCTCaggcttcctcgctcactgactcgctgcgctcggtcgttcggctgcggcgagcggtatcagctcactcaaaggcggtaatCAATTCGACCCAGCTTTCTTGTACAAAGTTGGCATTATAAAAAATAATTGCTCATCAATTTGTTGCAACGAACAGGTCACTATCAGTCAAAATAAAATCATTATTTGCCATCCAGCTGATATCCCCTATAGTGAGTCGTATTACATGGTCATAGCTGTTTCCTGGCAGCTCTGGCCCGTGTCTCAAAATCTCTGATGTTACATTGCACAAGATAAAAATATATCATCATGCCTCCTCTAGActtagacgtcaggtggcacttttcggggaaatgtgcgcggaacccctatttgtttatttttctaaatacattcaaatatgtatccgctcatgagacaataaccctgataaatgcttcaataatattgaaaaaggaagagtatgagtattcaacatttccgtgtcgcccttattcccttttttgcggcattttgccttcctgtttttgctcacccagaaacgctggtgaaagtaaaagatgctgaagatcagttgggtgcacgagtgggttacatcgaactggatctcaacagcggtaagatccttgagagttttcgccccgaagaacgttttccaatgatgagcacttttaaagttctgctatgtggcgcggtattatcccgtattgacgccgggcaagagcaactcggtcgccgcatacactattctcagaatgacttggttgagtactcaccagtcacagaaaagcatcttacggatggcatgacagtaagagaattatgcagtgctgccataaccatgagtgataacactgcggccaacttacttctgacaacgatcggaggaccgaaggagctaaccgcttttttgcacaacatgggggatcatgtaactcgccttgatcgttgggaaccggagctgaatgaagccataccaaacgacgagcgtgacaccacgatgcctgtagcaatggcaacaacgttgcgcaaactattaactggcgaactacttactctagcttcccggcaacaattaatagactggatggaggcggataaagttgcaggaccacttctgcgctcggcccttccggctggctggtttattgctgataaatctggagccggtgagcgtgggtctcgcggtatcattgcagcactggggccagatggtaagccctcccgtatcgtagttatctacacgacggggagtcaggcaactatggatgaacgaaatagacagatcgctgagataggtgcctcactgattaagcattggtaactgtcagaccaagtttactcatatatactttagattgatttaaaacttcatttttaatttaaaaggatctaGGTGAAGATCCTTTTTGATAATCCTCGAGaGCAGTTCAACCTGTTGATAGtacgtactaagctctcatgtttcacgtactaagctctcatgtttaacgtactaagctctcatgtttaacgaactaaaccctcatggctaacgtactaagctctcatggctaacgtactaagctctcatgtttcacgtactaagctctcatgtttgaacaataaaattaatataaatcagcaacttaaatagcctctaaggttttaagttttataagaaaaaaaagaatatataaggcttttaaagcttttaaggtttaacggttgtggacaacaagccagggatgtaacgcactgagaagcccttagagcctctcaaagcaattttgagtgacacaggaacacttaacggctgacatgggaattagccatgggcccgtgcgaatcaccctaggTGTAAAACGACGGCCAGTCTTAAGCTCGGGCCCCAAATAATGATTTTATTTTGACTGATAGTGACCTGTTCGTTGCAACAAATTGATGAGCAATGCTTTTTTATAATGCCAACTTTGTACAAAAAAGCAGGCTCCGAATTGgtatcacgaggcagaatttcagataaaaaaaatCCTTAGCTTTCGCTAAGGATCTGAAGTGgaattcatgA', 'plasmid', '2993')
