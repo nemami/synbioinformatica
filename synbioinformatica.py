@@ -4,9 +4,10 @@
 import sys, random, re, math, difflib
 from decimal import *
 
-# TODO: context-specific warnings + DNA names
+# TODO: SOEing, Phosphorylate() fxn, Temperature control, Colony picking?, Sequence() fxn (PCR 1000 bp read), 
+#       Primers() fxn (EIPCR vs. wobble vs. SOEing vs. etc.), assemblytree alignment 
 # TODO: Blunt end ligation, distinction between PCR product and phosphorylated blunt end digests
-# TODO: hashing and recognition of redundant digest / ligation products
+# TODO: hashing and recognition of redundant products
 # TODO: for PCR, identification of primers on the edge of a circular sequence
 
 dna_alphabet = {'A':'A', 'C':'C', 'G':'G', 'T':'T',
@@ -1101,7 +1102,7 @@ def GelAndZymoPurify(inputDNAs, strategy):
 	shortFlag = False
 	lostFlag = False
 	if len(inputDNAs) == 0:
-		print 'WARNING: Gel purification function passed empty input list -- will return empty output'
+		print "WARNING: Gel purification with strategy \'"+strategy+"\' passed empty input list -- will return empty output"
 		return inputDNAs
 	elif len(inputDNAs) == 1:
 		return inputDNAs
@@ -1170,16 +1171,16 @@ def GelAndZymoPurify(inputDNAs, strategy):
 				shortFlag = True
 			interBands.append(currentTuple[1])
 		if len(interBands) == 0:
-			print "WARNING: no digest bands present in given range, purification yielding zero DNA products."
+			print "WARNING: For gel purification with strategy \'"+strategy+"\', no digest bands present in given range, with purification yielding zero DNA products."
 		elif len(interBands) > 1:
-			print "WARNING: fragment purification in range of band size '"+str(strategy)+"' resulted in purification of multiple, possibly unintended distinct DNAs."
+			print "WARNING: Fragment purification in range of band size '"+str(strategy)+"' resulted in purification of multiple, possibly unintended distinct DNAs."
 	if len(interBands) == 0:
 		if lostFlag:
-			print "WARNING: Purification with given strategy '"+strategy+"' returned short fragments (< 50 bp) that were lost. Returning empty products list."
+			print "WARNING: Purification with given strategy \'"+strategy+"\' returned short fragments (< 50 bp) that were lost. Returning empty products list."
 		print "WARNING: Purification with given strategy '"+strategy+"' yielded zero products. Returning empty products list."
 	else:
 		if lostFlag:
-			print "WARNING: Purification with given strategy '"+strategy+"' returned at least one short fragment (< 50 bp) that was lost. Returning remaining products."
+			print "WARNING: Purification with given strategy \'"+strategy+"\' returned at least one short fragment (< 50 bp) that was lost. Returning remaining products."
 			for band in interBands:
 				parentBand = band.clone()
 				parentBand.setChildren((band,))
@@ -1189,7 +1190,7 @@ def GelAndZymoPurify(inputDNAs, strategy):
 				parentBand.instructions = 'Gel purify ('+band.name+'), followed by short fragment cleanup.'
 				outputBands.append(parentBand)
 		elif shortFlag:
-			print "WARNING: Purification with given strategy '"+strategy+"' yielded short fragments (< 300 bp). Returning short fragment cleanup products."
+			print "WARNING: Purification with given strategy \'"+strategy+"\' yielded short fragments (< 300 bp). Returning short fragment cleanup products."
 			for band in interBands:
 				parentBand = band.clone()
 				parentBand.setChildren((band,))
@@ -1309,7 +1310,7 @@ def TransformPlateMiniprep(DNAs, strain, selection_antibiotic):
 			for resistance in resistances:
 				if not(resistance in strain.resistance):
 					newR = True
-					success_msg += "Transformation successful -- use "+resistance+" antibiotic selection."
+					success_msg += "Transformation of "+dna.name+" into "+strain.name+" successful -- use "+resistance+" antibiotic selection."
 			for replicon in replicons:
 				#has the pir/repA necessary for ColE2/R6K?
 				if replicon in strain.replication:
@@ -1325,19 +1326,20 @@ def TransformPlateMiniprep(DNAs, strain, selection_antibiotic):
 				parent = dna.clone()
 				parent.setChildren((dna, ))
 				dna.addParent(parent)
+				parent.instructions = 'Transform '+dna.name+' into '+strain.name+', selecting for '+resistance+' resistance.'
 				parent.setTimeStep(24)
 				parent.addMaterials(['Buffers P1,P2,N3,PB,PE','Miniprep column',resistance[:-1]+' LB agar plates','LB '+resistance[:-1]+' media'])
 				transformed.append(dna)	
 				print success_msg
 			else:
 				if not(newR):
-					print "Plasmid either doesn't have an antibiotic resistance or doesn't confer a new one on this strain"
+					print "WARNING: For transformation of "+dna.name+" into "+strain.name+", plasmid either doesn't have an antibiotic resistance or doesn't confer a new one on this strain"
 				if not(replicon_ok):
-					print "Plasmid replicon won't function in this strain"
+					print "WARNING: For transformation of "+dna.name+" into "+strain.name+", plasmid replicon won't function in this strain"
 				if not(no_existing_plasmid):
-					print "Transformed plasmid replicon competes with existing plasmid in strain"
+					print "WARNING: For transformation of "+dna.name+" into "+strain.name+", transformed plasmid replicon competes with existing plasmid in strain"
 	if len(transformed)<1:
-		print "No DNAs successfully transformed.  DNAs may be linear."
+		print "WARNING: For transformation of "+dna.name+" into "+strain.name+", no DNAs successfully transformed. DNAs may be linear."
 	return transformed
 
 yes = DNA('GATCCtaaCTCGAcgtgcaggcttcctcgctcactgactcgctgcgctcggtcgttcggctgcggcgagcggtatcagctcactcaaaggcggtaatCAATTCGACCCAGCTTTCTTGTACAAAGTTGGCATTATAAAAAATAATTGCTCATCAATTTGTTGCAACGAACAGGTCACTATCAGTCAAAATAAAATCATTATTTGCCATCCAGCTGATATCCCCTATAGTGAGTCGTATTACATGGTCATAGCTGTTTCCTGGCAGCTCTGGCCCGTGTCTCAAAATCTCTGATGTTACATTGCACAAGATAAAAATATATCATCATGCCTCCTCTAGACCAGCCAGGACAGAAATGCCTCGACTTCGCTGCTGCCCAAGGTTGCCGGGTGACGCACACCGTGGAAACGGATGAAGGCACGAACCCAGTGGACATAAGCCTGTTCGGTTCGTAAGCTGTAATGCAAGTAGCGTATGCGCTCACGCAACTGGTCCAGAACCTTGACCGAACGCAGCGGTGGTAACGGCGCAGTGGCGGTTTTCATGGCTTGTTATGACTGTTTTTTTGGGGTACAGTCTATGCCTCGGGCATCCAAGCAGCAAGCGCGTTACGCCGTGGGTCGATGTTTGATGTTATGGAGCAGCAACGATGTTACGCAGCAGGGCAGTCGCCCTAAAACAAAGTTAAACATCATGAGGGAAGCGGTGATCGCCGAAGTATCGACTCAACTATCAGAGGTAGTTGGCGTCATCGAGCGCCATCTCGAACCGACGTTGCTGGCCGTACATTTGTACGGCTCCGCAGTGGATGGCGGCCTGAAGCCACACAGTGATATTGATTTGCTGGTTACGGTGACCGTAAGGCTTGATGAAACAACGCGGCGAGCTTTGATCAACGACCTTTTGGAAACTTCGGCTTCCCCTGGAGAGAGCGAGATTCTCCGCGCTGTAGAAGTCACCATTGTTGTGCACGACGACATCATTCCGTGGCGTTATCCAGCTAAGCGCGAACTGCAATTTGGAGAATGGCAGCGCAATGACATTCTTGCAGGTATCTTCGAGCCAGCCACGATCGACATTGATCTGGCTATCTTGCTGACAAAAGCAAGAGAACATAGCGTTGCCTTGGTAGGTCCAGCGGCGGAGGAACTCTTTGATCCGGTTCCTGAACAGGATCTATTTGAGGCGCTAAATGAAACCTTAACGCTATGGAACTCGCCGCCCGACTGGGCTGGCGATGAGCGAAATGTAGTGCTTACGTTGTCCCGCATTTGGTACAGCGCAGTAACCGGCAAAATCGCGCCGAAGGATGTCGCTGCCGACTGGGCAATGGAGCGCCTGCCGGCCCAGTATCAGCCCGTCATACTTGAAGCTAGACAGGCTTATCTTGGACAAGAAGAAGATCGCTTGGCCTCGCGCGCAGATCAGTTGGAAGAATTTGTCCACTACGTGAAAGGCGAGATCACCAAGGTAGTCGGCAAATAACCCTCGAGCCACCCATGACCAAAATCCCTTAACGTGAGTTACGCGTCGTTCCACTGAGCGTCAGACCCCGTAGAAAAGATCAAAGGATCTTCTTGAGATCCTTTTTTTCTGCGCGTAATCTGCTGCTTGCAAACAAAAAAACCACCGCTACCAGCGGTGGTTTGTTTGCCGGATCAAGAGCTACCAACTCTTTTTCCGAAGGTAACTGGCTTCAGCAGAGCGCAGATACCAAATACTGTCCTTCTAGTGTAGCCGTAGTTAGGCCACCACTTCAAGAACTCTGTAGCACCGCCTACATACCTCGCTCTGCTAATCCTGTTACCAGTGGCTGCTGCCAGTGGCGATAAGTCGTGTCTTACCGGGTTGGACTCAAGACGATAGTTACCGGATAAGGCGCAGCGGTCGGGCTGAACGGGGGGTTCGTGCACACAGCCCAGCTTGGAGCGAACGACCTACACCGAACTGAGATACCTACAGCGTGAGCATTGAGAAAGCGCCACGCTTCCCGAAGGGAGAAAGGCGGACAGGTATCCGGTAAGCGGCAGGGTCGGAACAGGAGAGCGCACGAGGGAGCTTCCAGGGGGAAACGCCTGGTATCTTTATAGTCCTGTCGGGTTTCGCCACCTCTGACTTGAGCGTCGATTTTTGTGATGCTCGTCAGGGGGGCGGAGCCTATGGAAAAACGCCAGCAACGCGGCCTTTTTACGGTTCCTGGCCTTTTGCTGGCCTTTTGCTCACATGTTCTTTCCTGCGTTATCCCCTGATTCTGTGGATAACCGTcctaggTGTAAAACGACGGCCAGTCTTAAGCTCGGGCCCCAAATAATGATTTTATTTTGACTGATAGTGACCTGTTCGTTGCAACAAATTGATGAGCAATGCTTTTTTATAATGCCAACTTTGTACAAAAAAGCAGGCTCCGAATTGgtatcacgaggcagaatttcagataaaaaaaatccttagctttcgctaaggatgatttctgGAATTCATGA', 'plasmid', 'yes Plasmid')
