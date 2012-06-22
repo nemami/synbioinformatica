@@ -426,8 +426,6 @@ def Digest(InputDNA, Enzymes):
 					print 'WARNING: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input with length '+str(totalLength)
 				else:
 					pass
-				site = site + (enzyme, )
-				indices.append(site)
 			# WARNING: restriction index out of bounds exception
 			elif InputDNA.topology == 'linear' and site[2] == 'antisense' and site[1] - max(enzyme.bottom_strand_offset,enzyme.top_strand_offset) < 0:
 				print 'WARNING: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input with length '+str(totalLength)
