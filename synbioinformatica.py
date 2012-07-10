@@ -3,7 +3,9 @@
 import sys, random, re, math, difflib
 from decimal import *
 
-# TODO: assemblytree visualization
+# TODO: assemblytree visualization, alignment for time optimization
+# TODO: tutorials
+# TODO: fill in methods
 # TODO: SOEing, Phosphorylate() fxn, Temperature control, Colony picking?, Sequence() fxn (PCR 1000 bp read), 
 #       Primers() fxn (EIPCR vs. wobble vs. SOEing vs. etc.), assemblytree alignment 
 # TODO: Blunt end ligation, distinction between PCR product and phosphorylated blunt end digests
@@ -249,7 +251,7 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
 				(counter,nextOrientation,rightStub) = (counter+3, 1, reverseComplement(reversePrimerStub))
 		if indices[2] == 'fwd':
 			(fwdStart, fwdEnd, revStart, revEnd) = (indices[0], indices[1], indices[3], indices[4])
-			fwdTM, revTM= (primerTm(template[fwdStart:fwdEnd]), primerTm(template[revStart:revEnd])) 
+			(fwdTM, revTM) = (primerTm(template[fwdStart:fwdEnd]), primerTm(template[revStart:revEnd])) 
 			if fwdStart < revStart and fwdEnd < revEnd:
 				parent = DNA(leftStub+template[fwdStart:revEnd]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
 			else:
