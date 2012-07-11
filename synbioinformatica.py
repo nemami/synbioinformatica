@@ -169,7 +169,7 @@ def PCRErrorHandling(InputTuple):
 			matchedAlready = 1
 		return (matchedAlready,tooShort1)
 	else:
-		if matchCount == 0 & len(myList) > 0:				# no Tm > 45 C matches in forward direction
+		if matchCount == 0 & len(myList) > 0:				# no Tm > 45 C matches in reverse direction
 			tooShort2 = True
 		else:
 			tooShort2 = False
@@ -198,7 +198,7 @@ def PCRErrorHandling(InputTuple):
 def RaisePrimerError(inputTuple, error):
 	(primer1DNA, primer2DNA, templateDNA) = inputTuple
 	print 'EXCEPTION: For PCR of template ('+templateDNA.name+') with primers ('+primer1DNA.name+', '+primer2DNA.name+'), '+error.msg
-	print 'Error Primer: '+error.primer[:-1]
+	print 'Error primer: '+error.primer[:-1]
 
 # Description: AssemblyTreeRelationships() function assigns relationships for PCR inputs and PCR product for assembly tree purposes
 def AssemblyTreeRelationships(inputTuple, parent, fwdTM, revTM):
@@ -251,26 +251,17 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
 				(counter,nextOrientation,rightStub) = (counter+3, 1, reverseComplement(reversePrimerStub))
 		if indices[2] == 'fwd':
 			(fwdStart, fwdEnd, revStart, revEnd) = (indices[0], indices[1], indices[3], indices[4])
-			(fwdTM, revTM) = (primerTm(template[fwdStart:fwdEnd]), primerTm(template[revStart:revEnd])) 
-			if fwdStart < revStart and fwdEnd < revEnd:
-				parent = DNA(leftStub+template[fwdStart:revEnd]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
-			else:
-				# circular template is exception to the fwdStart < revStart and fwdEnd < revEnd rule
-				if templateDNA.topology == 'circular':	
-					parent = DNA(leftStub+template[fwdStart:len(template)-1]+template[:revStart]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
-				else:
-					raise PrimerError((primer1DNA.sequence, primer2DNA.sequence),template,'forward primer must anneal upstream of the reverse.')
-		elif indices[2] == 'rev':
+		else:
 			(fwdStart, fwdEnd, revStart, revEnd) = (indices[3], indices[4], indices[0], indices[1])
-			(fwdTM, revTM) = (primerTm(template[fwdStart:fwdEnd]), primerTm(template[revStart:revEnd]))
-			if fwdStart < revStart and fwdEnd < revEnd:
-				parent = DNA(leftStub+template[fwdStart:revEnd]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
+		(fwdTM, revTM) = (primerTm(template[fwdStart:fwdEnd]), primerTm(template[revStart:revEnd]))		
+		if fwdStart < revStart and fwdEnd < revEnd:
+			parent = DNA(leftStub+template[fwdStart:revEnd]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
+		else:
+			# circular template is exception to the fwdStart < revStart and fwdEnd < revEnd rule
+			if templateDNA.topology == 'circular':	
+				parent = DNA(leftStub+template[fwdStart:len(template)-1]+template[:revStart]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
 			else:
-				# circular template is exception to the fwdStart < revStart and fwdEnd < revEnd rule
-				if templateDNA.topology == 'circular':
-					parent = DNA(leftStub+template[fwdStart:len(template)-1]+template[:revStart]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
-				else:
-					raise PrimerError((primer1DNA.sequence, primer2DNA.sequence),template,'forward primer must anneal upstream of the reverse.')
+				raise PrimerError((primer1DNA.sequence, primer2DNA.sequence),template,'forward primer must anneal upstream of the reverse.')
 		return AssemblyTreeRelationships(inputTuple, parent, fwdTM, revTM)
 	except PrimerError, error:
 		RaisePrimerError(inputTuple, error)
