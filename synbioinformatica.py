@@ -3,14 +3,13 @@
 import sys, random, re, math, difflib
 from decimal import *
 
-# TODO: assemblytree visualization, alignment for time optimization
-# TODO: tutorials
-# TODO: fill in methods
+# TODO: assemblytree alignment
 # TODO: SOEing, Phosphorylate() fxn, Temperature control, Colony picking?, Sequence() fxn (PCR 1000 bp read), 
 #       Primers() fxn (EIPCR vs. wobble vs. SOEing vs. etc.), assemblytree alignment 
 # TODO: Blunt end ligation, distinction between PCR product and phosphorylated blunt end digests
 # TODO: hashing and recognition of redundant products
 # TODO: for PCR, identification of primers on the edge of a circular sequence
+# TODO: tutorials
 
 dna_alphabet = {'A':'A', 'C':'C', 'G':'G', 'T':'T',
                 'R':'AG', 'Y':'CT', 'W':'AT', 'S':'CG', 'M':'AC', 'K':'GT',
@@ -44,23 +43,23 @@ gencode = {
     'TAC':'Y', 'TAT':'Y', 'TAA':'_', 'TAG':'_',
     'TGC':'C', 'TGT':'C', 'TGA':'_', 'TGG':'W'}
 
+# Description: converts DNA string to amino acid string
 def translate( sequence ):
     """Return the translated protein from 'sequence' assuming +1 reading frame"""
     return ''.join([gencode.get(sequence[3*i:3*i+3],'X') for i in range(len(sequence)//3)])
 
-# Read in all enzymes:
+# Description: read in all enzymes from REase tsv into dict EnzymeDictionary
 def EnzymeDictionary():
 	EnzymeDictionary = {}
 	fh = open('REases.tsv', 'rU')
 	for line in fh:
 		card = line.rstrip().split('\t')
 		card[0] = re.sub(r'\-','_',card[0])
-		EnzymeDictionary[card[0]] = restrictionEnzyme(card[0],card[1],card[2],card[3],card[4],card[5],card[6],card[7],card[8],card[9])
+		EnzymeDictionary[card[0]] = restrictionEnzyme(*card)
 	return EnzymeDictionary
 
 # Description: Suffix Tree implementation for the purpose of PCR Longest Common Substring identification
-# Code from: http://chipsndips.livejournal.com/2005/12/07/
-inf = 1000000
+# Code adapted from: http://chipsndips.livejournal.com/2005/12/07/
 # Define a  for a node in the suffix tree
 class SuffixNode(dict):
 	def __init__(self):
@@ -107,8 +106,10 @@ class LCS:
 						s[str[kp]] = kp,j-1, r
 						r.depth = s.depth + (i-k)
 						sp.depth = r.depth + pp - j + 1
-						if j<len(str1)<i and r.depth>self.deepest[0]:
-							self.deepest = r.depth,j-1
+						# Original statement was: if j<len(str1)<i and r.depth>self.deepest[0]:
+						# Adapted for PCR by restricting LCS matches to primer terminal 3' end
+						if len(str1)<i and r.depth>self.deepest[0] and j == len(str1) - 1:
+							self.deepest = r.depth, j-1
 				elif s.has_key(t):
 					break
 				else:
@@ -127,81 +128,64 @@ class LCS:
 		start = self.deepest[1]-self.deepest[0]+1
 		end = self.deepest[1]+1
 		return (self.str[start:end],start,end)
-	def LCSasRegex(self, currentPrimer, template):
-		start = self.deepest[1]-self.deepest[0]+1
-		end = self.deepest[1]+1
-		MatchIndicesTuple = (self.str[start:end],start,end)
-		annealingRegex = re.compile(MatchIndicesTuple[0], re.IGNORECASE)
-		PrimerStub = currentPrimer[0:len(currentPrimer)-len(MatchIndicesTuple[0])-1]
-		AnnealingMatches = annealingRegex.findall(template)
-		return (AnnealingMatches, MatchIndicesTuple, PrimerStub)
+	def LCSasRegex(self, currentPrimer, template, fwd):
+		annealingRegion = self.str[ self.deepest[1] - self.deepest[0] + 1 : self.deepest[1] + 1 ]
+		if not fwd:
+			annealingRegion = reverseComplement(annealingRegion)
+		(AnnealingMatches, matchCount, MatchIndicesTuple) = ([], 0, None)
+		annealingRegex = re.compile(annealingRegion, re.IGNORECASE)
+		matchList = annealingRegex.finditer(template)
+		for match in matchList:
+			if primerTm(match.group()) > 45:
+				matchCount += 1
+				MatchIndicesTuple = (match.start(), match.end())
+		PrimerStub = currentPrimer[0:len(currentPrimer)-len(annealingRegion)-1]
+		return (matchCount, MatchIndicesTuple, PrimerStub)
 
-# Description: PrimerError class associates information about primer design errors and sequences
-class PrimerError(Exception):
-    """Exception raised for errors in the primer(s) input.
-
-    Attributes:
-        primer -- sequence for one (or both, in tuple form) of the given input primers
-        template -- sequence for the given PCR template
-        msg  -- explanation of the error
-    """
-
-    def __init__(self, primer, template, msg):
-        self.primer = primer
-        self.template = template
-        self.msg = msg
-
-# Description: PCRErrorHandling() function identifies errors in primer design and raises exceptions based on errors and their context
+# Description: identifies errors in primer design and raises exceptions based on errors and their context
 def PCRErrorHandling(InputTuple):
-	(fwd,matchCount,matchedAlready,nextOrientation,myList,tooShort1,currentPrimer,template) = InputTuple
+	(fwd,matchCount,matchedAlready,nextOrientation,currentPrimer,template) = InputTuple
+	if len(currentPrimer.sequence) > 7:
+		abbrev = currentPrimer.sequence[:3]+'...'+currentPrimer.sequence[-3:]
+	else:
+		abbrev = currentPrimer.sequence
 	if fwd:
-		if matchCount == 0 & len(myList) > 0:				# no Tm > 45 C matches in forward direction
-			tooShort1 = True
-		else:
-			tooShort1 = False
 		if matchCount > 1:									# if matches in forward direction more than once
 			if nextOrientation == 2: 							# ... but was supposed to match in reverse direction
-				raise PrimerError(currentPrimer,template,'primers both anneal in forward (5\'->3\') orientation AND primer anneals to multiple sites in template.')
-			raise PrimerError(currentPrimer,template,'primer anneals to multiple sites in template.')
+				raise Exception('*Primer error*: primers both anneal in forward (5\'->3\') orientation AND primer '+abbrev+' anneals to multiple sites in template.')
+			raise Exception('*Primer error*: primer '+abbrev+' anneals to multiple sites in template.')
 		elif matchCount == 1:								# if matches in the forward direction exactly once
 			if nextOrientation == 2: 							# ... but was supposed to match in reverse direction
-				raise PrimerError(currentPrimer,template,'primers both anneal in forward  (5\'->3\') orientation.')
+				raise Exception('*Primer error*: primers both anneal in forward  (5\'->3\') orientation.')
 			matchedAlready = 1
-		return (matchedAlready,tooShort1)
+		return matchedAlready
 	else:
-		if matchCount == 0 & len(myList) > 0:				# no Tm > 45 C matches in reverse direction
-			tooShort2 = True
-		else:
-			tooShort2 = False
 		if matchCount > 1:									# if matches in reverse direction more than once
 			if matchedAlready == 1:								# ... and already matched in forward direction
 				if nextOrientation == 1: 							# ... but was supposed to match in forward direction
-					raise PrimerError(currentPrimer,template,'primers both anneal in reverse (3\'->5\') orientation AND error primer anneals to multiple sites in template AND error primer anneals in both orientations.')
-				raise PrimerError(currentPrimer,template,'primer anneals to multiple sites in template AND error primer anneals in both orientations.')
+					raise Exception('*Primer error*: primers both anneal in reverse (3\'->5\') orientation AND primer '+abbrev+' anneals to multiple sites in template AND primer '+abbrev+' anneals in both orientations.')
+				raise Exception('*Primer error*: primer '+abbrev+' anneals to multiple sites in template AND primer '+abbrev+' anneals in both orientations.')
 			if nextOrientation == 1: 
-				raise PrimerError(currentPrimer,template,'primers both anneal in reverse (3\'->5\') orientation AND error primer anneals to multiple sites in template.')
-			raise PrimerError(currentPrimer,template,'primer anneals to multiple sites in template.')
+				raise Exception('*Primer error*: primers both anneal in reverse (3\'->5\') orientation AND primer '+abbrev+' anneals to multiple sites in template.')
+			raise Exception('*Primer error*: primer '+abbrev+' anneals to multiple sites in template.')
 		elif matchCount == 1: 								# if matches in the reverse direction exactly once
 			if matchedAlready == 1:								# ... and already matched in forward direction
 				if nextOrientation == 1: 							# ... but was supposed to match in forward direction
-					raise PrimerError(currentPrimer,template,'both primers have same reverse (3\'->5\') orientation AND error primer anneals in both orientations.')
-				raise PrimerError(currentPrimer,template,'primer primes in both orientations.')
+					raise Exception('*Primer error*: both primers have same reverse (3\'->5\') orientation AND primer '+abbrev+' anneals in both orientations.')
+				raise Exception('*Primer error*: primer '+abbrev+' primes in both orientations.')
 			else:
 				matchedAlready = 2
 		if matchedAlready == 0:								# if no matches
-			if tooShort1 and tooShort2:							# ... it may be because the annealing region has a tm < 45 C
-				raise PrimerError(currentPrimer, template,'primer does not anneal in either orientation (annealing Tm < 45 C).')
-			raise PrimerError(currentPrimer,template,'primer does not anneal in either orientation.') 	# ... or not.
-		return (matchedAlready, tooShort2)
+			raise Exception('*Primer error*: primer '+abbrev+' does not anneal in either orientation.')
+		return matchedAlready
 
-# Description: RaisePrimerError() function provides context specific warnings to user about PCR failure as a result of primer design
+# Description: provides context specific warnings to user about PCR failure as a result of primer design
 def RaisePrimerError(inputTuple, error):
 	(primer1DNA, primer2DNA, templateDNA) = inputTuple
-	print 'EXCEPTION: For PCR of template ('+templateDNA.name+') with primers ('+primer1DNA.name+', '+primer2DNA.name+'), '+error.msg
-	print 'Error primer: '+error.primer[:-1]
+	print 'EXCEPTION: For PCR of template ('+templateDNA.name+') with primers ('+primer1DNA.name+', '+primer2DNA.name+'), '+error.message
 
-# Description: AssemblyTreeRelationships() function assigns relationships for PCR inputs and PCR product for assembly tree purposes
-def AssemblyTreeRelationships(inputTuple, parent, fwdTM, revTM):
+# Description: assigns relationships for PCR inputs and PCR product for assembly tree purposes
+def pcrPostProcessing(inputTuple, parent, fwdTM, revTM):
 	(primer1DNA, primer2DNA, templateDNA) = inputTuple
 	for child in inputTuple:
 		child.addParent(parent)
@@ -217,8 +201,12 @@ def AssemblyTreeRelationships(inputTuple, parent, fwdTM, revTM):
 # and raises PrimerError exceptions for different cases of failed PCR as a result of primer design
 # Note: PCR() product is not case preserving
 def PCR(primer1DNA, primer2DNA, templateDNA):
-	# Suffix Tree string intiialization, non-alphabet character concatenation
-	(template, primer_1, primer_2) = (templateDNA.sequence + '$', primer1DNA.sequence + '$', primer2DNA.sequence + '$')
+	for pcrInput in (primer1DNA, primer2DNA, templateDNA):
+		if not isinstance(pcrInput, DNA):
+			raise Exception('*PCR error*: PCR function was passed a non-DNA argument. Returning output "None".')
+			return None
+	# Suffix Tree string initialization, non-alphabet character concatenation
+	(template, primer_1, primer_2) = (templateDNA.sequence, primer1DNA, primer2DNA)
 	# Tuple of assemblyTree 'children', for the purpose of child/parent assignment
 	inputTuple = (primer1DNA, primer2DNA, templateDNA)
 	# Initialization of all parameters, where indices is the start / stop indices + direction of annealing primer sequences 
@@ -226,28 +214,21 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
 	try:
 		# NOTE: no assumptions made about input primer directionality
 		for currentPrimer in (primer_1, primer_2):
-			fwdMatch = LCS(template.upper(),currentPrimer.upper())	
-			(forwardAnnealingMatches, forwardMatchIndicesTuple, forwardPrimerStub) = fwdMatch.LCSasRegex(currentPrimer, template)
-			(matchCount, matchedAlready, start, stop) = (0,0,0,0)
-			for match in forwardAnnealingMatches:
-				if primerTm(match) >= 45:			# forward match criteria: annealing Tm >= 45 C for matches
-					matchCount += 1
-			tooShort1 = False 						# Default
+			currentSequence = currentPrimer.sequence + '$'
+			fwdMatch = LCS(currentSequence.upper(), template.upper())
+			(matchCount, forwardMatchIndicesTuple, forwardPrimerStub) = fwdMatch.LCSasRegex(currentSequence, template, 1)
+			(matchedAlready, start, stop) = (0,0,0) # Defaults
 			# Forward case error handling: delegated to PCRErrorHandling function
-			(matchedAlready,tooShort1) = PCRErrorHandling((1,matchCount,matchedAlready,nextOrientation,forwardAnnealingMatches,tooShort1,currentPrimer,template))
-			revMatch = LCS(template.upper(),reverseComplement(currentPrimer).upper()+'$')
-			(reverseAnnealingMatches, reverseMatchIndicesTuple, reversePrimerStub) = revMatch.LCSasRegex(currentPrimer, template)
-			matchCount = 0
-			for match in reverseAnnealingMatches:
-				if primerTm(match) >= 45:			# reverse match criteria: annealing Tm >= 45 C for matches
-					matchCount += 1
+			matchedAlready = PCRErrorHandling((1,matchCount,matchedAlready,nextOrientation,currentPrimer,template))
+			revMatch = LCS(currentSequence.upper(),reverseComplement(template).upper())
+			(matchCount, reverseMatchIndicesTuple, reversePrimerStub) = revMatch.LCSasRegex(currentSequence, template, 0)
 			# Reverse case error handling: delegated to PCRErrorHandling function
-			(matchedAlready,tooShort2) = PCRErrorHandling((0,matchCount,matchedAlready,nextOrientation,reverseAnnealingMatches,tooShort1,currentPrimer,template))
+			matchedAlready = PCRErrorHandling((0,matchCount,matchedAlready,nextOrientation,currentPrimer,template))
 			if matchedAlready == 1:
-				(indices[counter], indices[counter+1], indices[counter+2]) = (forwardMatchIndicesTuple[1], forwardMatchIndicesTuple[2], 'fwd')
+				(indices[counter], indices[counter+1], indices[counter+2]) = (forwardMatchIndicesTuple[0], forwardMatchIndicesTuple[1], 'fwd')
 				(counter,nextOrientation,leftStub) = (counter+3, 2, forwardPrimerStub)
 			elif matchedAlready == 2:
-				(indices[counter], indices[counter+1], indices[counter+2]) = (reverseMatchIndicesTuple[1], reverseMatchIndicesTuple[2], 'rev')
+				(indices[counter], indices[counter+1], indices[counter+2]) = (reverseMatchIndicesTuple[0], reverseMatchIndicesTuple[1], 'rev')
 				(counter,nextOrientation,rightStub) = (counter+3, 1, reverseComplement(reversePrimerStub))
 		if indices[2] == 'fwd':
 			(fwdStart, fwdEnd, revStart, revEnd) = (indices[0], indices[1], indices[3], indices[4])
@@ -255,26 +236,27 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
 			(fwdStart, fwdEnd, revStart, revEnd) = (indices[3], indices[4], indices[0], indices[1])
 		(fwdTM, revTM) = (primerTm(template[fwdStart:fwdEnd]), primerTm(template[revStart:revEnd]))		
 		if fwdStart < revStart and fwdEnd < revEnd:
-			parent = DNA(leftStub+template[fwdStart:revEnd]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
+			parent = DNA('PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name, leftStub+template[fwdStart:revEnd]+rightStub)
 		else:
 			# circular template is exception to the fwdStart < revStart and fwdEnd < revEnd rule
 			if templateDNA.topology == 'circular':	
-				parent = DNA(leftStub+template[fwdStart:len(template)-1]+template[:revStart]+rightStub,'PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name)
+				parent = DNA('PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name, leftStub+template[fwdStart:len(template)-1]+template[:revStart]+rightStub)
 			else:
-				raise PrimerError((primer1DNA.sequence, primer2DNA.sequence),template,'forward primer must anneal upstream of the reverse.')
-		return AssemblyTreeRelationships(inputTuple, parent, fwdTM, revTM)
+				raise Exception('*PCR Error*: forward primer must anneal upstream of the reverse.')
+		return pcrPostProcessing(inputTuple, parent, fwdTM, revTM)
 	except PrimerError, error:
-		RaisePrimerError(inputTuple, error)
+		# RaisePrimerError(inputTuple, error)
+		raise
 
-# Description: reverseComplement() is case preserving reverse complementation of nucleotide sequences
+# Description: case preserving reverse complementation of nucleotide sequences
 def reverseComplement(sequence):
   	return "".join([complement_alphabet.get(nucleotide, '') for nucleotide in sequence[::-1]])
 
-# Description: reverse() is case preserving string reversal
+# Description: case preserving string reversal
 def reverse(sequence):
 	return sequence[::-1]
 
-# Description: Complement() is case preserving complementation of nucleotide sequences
+# Description: case preserving complementation of nucleotide sequences
 def Complement(sequence):
   	return "".join([complement_alphabet.get(nucleotide, '') for nucleotide in sequence[0:]])
 
@@ -283,6 +265,8 @@ def Complement(sequence):
 # Implemented by Tim Hsaiu in JavaScript, adapted to Python by Nima Emami
 # Based on Santa Lucia et. al. papers
 def primerTm(sequence):
+	if sequence == '':
+		return 0
 	milliMolarSalt = 50
 	milliMolarMagnesium = 1.5
 	nanoMolarPrimerTotal = 200
@@ -391,64 +375,170 @@ def getDhHash():
 	'cc' : -8.0}
 	return dictionary
 
-# TODO: clean up and modularize
-# Description: Digest() function
-def Digest(InputDNA, Enzymes):
-	(indices, frags, sites, totalLength) = ([], [], "", len(InputDNA.sequence)) # Initialization
-	enzNames = ''
-	incubationTemp = 0
-	nameList = []
+# Description: initialize Digest function parameters and checks for acceptable input format
+def initDigest(InputDNA, Enzymes):
+	(indices, frags, sites, totalLength, enzNames, incubationTemp, nameList, filtered) = ([], [], "", len(InputDNA.sequence), '', 0, [], []) # Initialization
 	for enzyme in Enzymes:
 		nameList.append(enzyme.name)
 		enzNames = enzNames+enzyme.name+', '
 		incubationTemp = max(incubationTemp,enzyme.incubate_temp)
 	enzNames = enzNames[:-2]
+	if len(Enzymes) > 2:
+		raise Exception('*Digest error*: only double or single digests allowed (provided enzymes were '+enzNames+')')
 	if InputDNA.topology == "linear":	
 		# Initialize indices array with start and end indices of the linear fragment
 			# Add dummy REase to avoid null pointers
 		dummy = restrictionEnzyme("dummy", "", "", "", "", "", 0, 0, "(0/0)","")
 		indices = [(0,0,'',dummy), (totalLength,0,'',dummy)]
-	# Identify restriction sites, fill in indices array
+	return (indices, frags, sites, totalLength, enzNames, incubationTemp, nameList, filtered)
+
+# Description: finds restriction sites for given Enzymes in given InputDNA molecule 
+def restrictionSearch(Enzymes, InputDNA, indices, totalLength):
 	for enzyme in Enzymes:
 		sites = enzyme.find_sites(InputDNA)
 		for site in sites:
 			# WARNING: end proximity for linear fragments exception
 			if InputDNA.topology == 'linear' and int(site[0]) - int(enzyme.endDistance) < 0 or int(site[1]) + int(enzyme.endDistance) > totalLength:
-				print 'WARNING: end proximity for '+enzyme.name+' restriction site at indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' for input with length '+str(totalLength)
+				raise Exception('*Digest Error*: end proximity for '+enzyme.name+' restriction site at indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' for input with length '+str(totalLength))
 				if InputDNA.topology == 'linear' and site[2] == 'antisense' and site[1] - max(enzyme.bottom_strand_offset,enzyme.top_strand_offset) < 0:
-					print 'WARNING: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input with length '+str(totalLength)
+					raise Exception('Digest Error*: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input with length '+str(totalLength))
 				else:
 					pass
 			# WARNING: restriction index out of bounds exception
 			elif InputDNA.topology == 'linear' and site[2] == 'antisense' and site[1] - max(enzyme.bottom_strand_offset,enzyme.top_strand_offset) < 0:
-				print 'WARNING: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input with length '+str(totalLength)
-				pass
+				raise Exception('Digest Error*: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input with length '+str(totalLength))
 			else: 
 				site = site + (enzyme, )
 				indices.append(site)
 		indices.sort()
-	# If you have overlapping restriction sites, choose the first one and discard they
-		# second (TODO: there may be a better, non-greedy way to do this... not sure)
-	filtered = []
-	n = 0
-	while n < len(indices):
+	return indices
+
+# Description: if you have overlapping restriction sites, choose the first one and discard the second 
+# TODO: revise this?
+def filterSites(filtered, indices):
+	siteCounter = 0
+	while siteCounter < len(indices):
 		try:
 			(currentTuple, nextTuple) = (indices[n], indices[n+1])
 			(currentStart, nextStart, currentEnzyme, nextEnzyme) = (currentTuple[0], nextTuple[0], currentTuple[3], nextTuple[3])
-			filtered.append(indices[n])
+			filtered.append(indices[siteCounter])
 			if currentStart + len(currentEnzyme.alpha_only_site) >= nextStart:
-				currentIndex = indices[n+1]
+				currentIndex = indices[siteCounter+1]
 				if currentIndex[0] == len(InputDNA.sequence):
 					pass
 				else:
-					print 'WARNING: overlapping restriction sites '+currentTuple[3].name+' (indices '+str(currentTuple[0])+','+str(currentTuple[1])+') and '+nextTuple[3].name+' (indices '+str(nextTuple[0])+','+str(nextTuple[1])+')'
-					n = n + 1
-			n = n + 1
-		except:
-			# got to end of list,
-			filtered.append(indices[n])
-			n = n + 1
-	indices = filtered
+					raise Exception('Digest Error*: overlapping restriction sites '+currentTuple[3].name+' (indices '+str(currentTuple[0])+','+str(currentTuple[1])+') and '+nextTuple[3].name+' (indices '+str(nextTuple[0])+','+str(nextTuple[1])+')')
+					siteCounter += 1
+			siteCounter += 1
+		except:		# got to end of list
+			filtered.append(indices[siteCounter])
+			siteCounter += 1
+	return filtered
+
+# Description: determines digest start and stop indices, as well as overhang indices for left and right restriction
+def digestIndices(direction, nextDirection, currentEnzyme, nextEnzyme, currentStart, nextStart, totalLength):
+	# CT(B)O = current top (bottom) overhang, AL(R)L = add left (right) length, NT(B)O = next top (bottom) overhang
+	(ALL, ARL) = (0,0)
+	# If it's on the sense strand, then overhang is positive
+	if direction == "sense":
+		(CTO, CBO) = (currentEnzyme.top_strand_offset, currentEnzyme.bottom_strand_offset)
+	# If it's on the antisense strand, then you have to go back towards the 5' to generate the overhang (so multiply by -1)
+	else:
+		(CTO, CBO) = (-1 * currentEnzyme.top_strand_offset, -1 * currentEnzyme.bottom_strand_offset)
+	ALL = max(CTO,CBO)
+	if nextDirection == "sense":
+		(NTO, NBO) = (nextEnzyme.top_strand_offset, nextEnzyme.bottom_strand_offset)
+		ARL = min(NTO,NBO)
+	else:
+		(NTO, NBO) = (-1 * nextEnzyme.top_strand_offset + 1, -1 * nextEnzyme.bottom_strand_offset + 1)
+		ARL = min(NTO,NBO)-1
+	(currentStart, digEnd) = ((currentStart+ALL) % totalLength, nextStart + ARL)
+	if currentEnzyme.reach and direction == "sense":
+		currentStart = currentStart + len(currentEnzyme.alpha_only_site)
+	if nextEnzyme.reach and nextDirection == "sense":
+		digEnd = digEnd + len(nextEnzyme.alpha_only_site)
+	return (currentStart, digEnd, CTO, CBO, NTO, NBO)
+
+# Description: instantiates Overhang object as the TLO or BLO field of a digested DNA molecule object
+def setLeftOverhang(digested, CTO, CBO, direction, currentStart, currentEnzyme, InputDNA):
+	if direction == "sense":
+		(TO, BO) = (CTO, CBO)
+	else:
+		(TO, BO) = (CBO, CTO)
+	difference = abs(abs(BO) - abs(TO))
+	# Generate TLO and BLO fragment overhangs
+	if abs(TO) < abs(BO) and direction == "sense" or abs(TO) > abs(BO) and direction == "antisense":
+		if currentStart - len(currentEnzyme.alpha_only_site) < 0:
+			digested.topLeftOverhang = Overhang(InputDNA.sequence[currentStart-difference:]+InputDNA.sequence[:currentStart])
+		else:
+			digested.topLeftOverhang = Overhang(InputDNA.sequence[currentStart-difference:currentStart])
+		digested.bottomLeftOverhang = Overhang('')
+	else:
+		digested.topLeftOverhang = Overhang('') 
+		# Edge case statement
+		if currentStart - len(currentEnzyme.alpha_only_site) < 0:
+			digested.bottomLeftOverhang = Overhang(Complement(InputDNA.sequence[currentStart-difference:]+InputDNA.sequence[:currentStart]))
+		else:
+			digested.bottomLeftOverhang = Overhang(Complement(InputDNA.sequence[currentStart-difference:currentStart]))
+	return digested
+
+# Description: instantiates Overhang object as the TRO or BRO field of a digested DNA molecule object
+def setRightOverhang(digested, NTO, NBO, direction, digEnd, nextEnzyme, InputDNA, totalLength):
+	if direction == "sense":
+		(TO, BO) = (NTO, NBO)
+	else:
+		(TO, BO) = (NBO, NTO)
+	difference = abs(abs(BO) - abs(TO))
+	# Apply ( mod length ) operator to end index value digDiff to deal with edge cases
+	digDiff = digEnd + difference
+	digDiff = digDiff % totalLength
+	# Generate TRO and BRO fragment overhangs
+	if abs(TO) < abs(BO) and direction == "sense" or abs(TO) > abs(BO) and direction == "antisense":
+		digested.topRightOverhang = Overhang('')
+		# Edge case statement
+		if digDiff - len(nextEnzyme.alpha_only_site) < 0:
+			digested.bottomRightOverhang = Overhang(Complement(InputDNA.sequence[digEnd:]+InputDNA.sequence[:digDiff]))
+		else:
+			digested.bottomRightOverhang = Overhang(Complement(InputDNA.sequence[digEnd:digDiff])) 
+	else:
+		# Edge case statement
+		if digDiff - len(nextEnzyme.alpha_only_site) < 0:
+			digested.topRightOverhang = Overhang(InputDNA.sequence[digEnd:]+InputDNA.sequence[:digDiff])
+		else:
+			digested.topRightOverhang = Overhang(InputDNA.sequence[digEnd:digDiff])
+		digested.bottomRightOverhang = Overhang('')
+	return digested
+
+# Description: take digest fragments before they're output, and sets assemblytree relationships and fields,
+# 				as well as digest buffer
+def digestPostProcessing(frag, InputDNA, nameList, enzNames, incubationTemp):
+	frag.setChildren((InputDNA, ))
+	InputDNA.addParent(frag)
+	if len(nameList) == 2:
+		bufferChoices = DigestBuffer(nameList[0],nameList[1])
+	else:
+		bufferChoices = DigestBuffer(nameList[0])
+	bestBuffer = int(bufferChoices[0])
+	if bestBuffer < 5:
+		bestBuffer = 'NEB'+str(bestBuffer)
+	else:
+		bestBuffer = 'Buffer EcoRI' 
+	frag.setTimeStep(1)
+	frag.addMaterials([bestBuffer,'ddH20'])
+	frag.instructions = 'Digest ('+InputDNA.name+') with '+enzNames+' at '+incubationTemp+'C in '+bestBuffer+' for 1 hour.'
+	return frag
+
+# Description: takes in InputDNA molecule and list of EnzymeDictionary elements, outputting a list of digest products
+def Digest(InputDNA, Enzymes):
+	# Initialization
+	if not isinstance(InputDNA, DNA):
+		raise Exception('*Digest Error*: Digest function passed empty list of DNA arguments. Returning empty list of products.')
+		return []
+	(indices, frags, sites, totalLength, enzNames, incubationTemp, nameList, filtered) = initDigest(InputDNA, Enzymes)
+	# Identify restriction sites, fill in indices array
+	indices = restrictionSearch(Enzymes, InputDNA, indices, totalLength)
+	# If you have overlapping restriction sites, choose the first one and discard they second 
+	indices = filterSites(filtered, indices)
 	# If it's linear, only act on the first n - 1 fragments until you hit the blunt ending
 		# If it's circular, then the 'last' segment is adjacent to the 'first' one, so you
 		# need to consider the adjacency relationships among the full n fragments
@@ -465,107 +555,28 @@ def Digest(InputDNA, Enzymes):
 		nextTuple = indices[n+1]
 		(currentStart, currentEnd, direction, currentEnzyme) = currentTuple
 		(nextStart, nextEnd, nextDirection, nextEnzyme) = nextTuple
-		# If it's on the sense strand, then overhang is positive
-			# If it's on the antisense strand, then you have to go back towards the 5'
-			# to generate the overhang (so multiply by -1)
-		# CT(B)O = current top (bottom) overhang, AL(R)L = add left (right) length, NT(B)O = next top (bottom) overhang
-		(ALL, ARL) = (0,0)
-		if direction == "sense":
-			(CTO, CBO) = (currentEnzyme.top_strand_offset, currentEnzyme.bottom_strand_offset)
-			ALL = max(CTO,CBO)
-		else:
-			(CTO, CBO) = (-1 * currentEnzyme.top_strand_offset, -1 * currentEnzyme.bottom_strand_offset)
-			ALL = max(CTO,CBO)
-		if nextDirection == "sense":
-			(NTO, NBO) = (nextEnzyme.top_strand_offset, nextEnzyme.bottom_strand_offset)
-			ARL = min(NTO,NBO)
-		else:
-			(NTO, NBO) = (-1 * nextEnzyme.top_strand_offset + 1, -1 * nextEnzyme.bottom_strand_offset + 1)
-			ARL = min(NTO,NBO)-1
 		# Update start value currentStart and apply ( mod length ) to deal with edge cases
 			# Also, update end value digEnd for fragment indices
-		currentStart = currentStart+ALL
-		currentStart = currentStart % totalLength
-		digEnd = nextStart + ARL
-		if currentEnzyme.reach and direction == "sense":
-			currentStart = currentStart + len(currentEnzyme.alpha_only_site)
-		if nextEnzyme.reach and nextDirection == "sense":
-			digEnd = digEnd + len(nextEnzyme.alpha_only_site)
+		(currentStart, digEnd, CTO, CBO, NTO, NBO) = digestIndices(direction, nextDirection, currentEnzyme, nextEnzyme, currentStart, nextStart, totalLength)
 		# Loop around fragment case for circular InputDNA's
 		if digEnd > 0 and currentStart > 0 and digEnd < currentStart and InputDNA.topology == 'circular':
 			if n == -1:
-				digested = DNA(InputDNA.sequence[currentStart:]+InputDNA.sequence[:digEnd],'digest','Digest of '+InputDNA.name+' with '+enzNames)
+				digested = DNA('digest','Digest of '+InputDNA.name+' with '+enzNames,InputDNA.sequence[currentStart:]+InputDNA.sequence[:digEnd])
 			else:
-				print 'WARNING: restriction sites for '+currentTuple[3].name+' ('+str(currentTuple[0])+','+str(currentTuple[1])+') and '+nextTuple[3].name+' ('+str(nextTuple[0])+','+str(nextTuple[1])+') contain mutually interfering overhangs -- fragment discarded.'
+				raise Exception('Digest Error*: restriction sites for '+currentTuple[3].name+' ('+str(currentTuple[0])+','+str(currentTuple[1])+') and '+nextTuple[3].name+' ('+str(nextTuple[0])+','+str(nextTuple[1])+') contain mutually interfering overhangs -- fragment discarded.')
 				continue
 		else:
-			digested = DNA(InputDNA.sequence[currentStart:digEnd],'digest','Digest of '+InputDNA.name+' with '+enzNames)
-		# Adjust top and bottom overhang values based on the orientation of the restriction site
-		if direction == "sense":
-			(TO, BO) = (CTO, CBO)
-		else:
-			(TO, BO) = (CBO, CTO)
-		difference = abs(abs(BO) - abs(TO))
-		# Generate TLO and BLO fragment overhangs
-		if abs(TO) < abs(BO) and direction == "sense" or abs(TO) > abs(BO) and direction == "antisense":
-			if currentStart - len(currentEnzyme.alpha_only_site) < 0:
-				digested.topLeftOverhang = Overhang(InputDNA.sequence[currentStart-difference:]+InputDNA.sequence[:currentStart])
-			else:
-				digested.topLeftOverhang = Overhang(InputDNA.sequence[currentStart-difference:currentStart])
-			digested.bottomLeftOverhang = Overhang('')
-		else:
-			digested.topLeftOverhang = Overhang('') 
-			# Edge case statement
-			if currentStart - len(currentEnzyme.alpha_only_site) < 0:
-				digested.bottomLeftOverhang = Overhang(Complement(InputDNA.sequence[currentStart-difference:]+InputDNA.sequence[:currentStart]))
-			else:
-				digested.bottomLeftOverhang = Overhang(Complement(InputDNA.sequence[currentStart-difference:currentStart]))
-		# Adjust top and bottom overhang values based on the orientation of the restriction site
-		if direction == "sense":
-			(TO, BO) = (NTO, NBO)
-		else:
-			(TO, BO) = (NBO, NTO)
-		difference = abs(abs(BO) - abs(TO))
-		# Apply ( mod length ) operator to end index value digDiff to deal with edge cases
-		digDiff = digEnd + difference
-		digDiff = digDiff % totalLength
-		# Generate TRO and BRO fragment overhangs
-		if abs(TO) < abs(BO) and direction == "sense" or abs(TO) > abs(BO) and direction == "antisense":
-			digested.topRightOverhang = Overhang('')
-			# Edge case statement
-			if digDiff - len(nextEnzyme.alpha_only_site) < 0:
-				digested.bottomRightOverhang = Overhang(Complement(InputDNA.sequence[digEnd:]+InputDNA.sequence[:digDiff]))
-			else:
-				digested.bottomRightOverhang = Overhang(Complement(InputDNA.sequence[digEnd:digDiff])) 
-		else:
-			# Edge case statement
-			if digDiff - len(nextEnzyme.alpha_only_site) < 0:
-				digested.topRightOverhang = Overhang(InputDNA.sequence[digEnd:]+InputDNA.sequence[:digDiff])
-			else:
-				digested.topRightOverhang = Overhang(InputDNA.sequence[digEnd:digDiff])
-			digested.bottomRightOverhang = Overhang('')
+			digested = DNA('digest','Digest of '+InputDNA.name+' with '+enzNames,InputDNA.sequence[currentStart:digEnd])
 		# Discard small fragments
 		if len(digested.sequence) < 4:
 			pass
 		else:
-			# frags.append((currentStart,digested))
+			# Adjust top and bottom overhang values based on the orientation of the restriction site
+			digested = setLeftOverhang(digested, CTO, CBO, direction, currentStart, currentEnzyme, InputDNA)
+			digested = setRightOverhang(digested, NTO, NBO, direction, digEnd, nextEnzyme, InputDNA, totalLength)
 			frags.append(digested)
-		# frags.sort()
 	for frag in frags:
-		frag.setChildren((InputDNA, ))
-		InputDNA.addParent(frag)
-		if len(nameList) == 2:
-			bufferChoices = DigestBuffer(nameList[0],nameList[1])
-		else:
-			bufferChoices = DigestBuffer(nameList[0])
-		bestBuffer = int(bufferChoices[0])
-		if bestBuffer < 5:
-			bestBuffer = 'NEB'+str(bestBuffer)
-		else:
-			bestBuffer = 'Buffer EcoRI' 
-		frag.setTimeStep(1)
-		frag.addMaterials([bestBuffer,'ddH20'])
-		frag.instructions = 'Digest ('+InputDNA.name+') with '+enzNames+' at '+incubationTemp+'C in '+bestBuffer+' for 1 hour.'
+		frag = digestPostProcessing(frag, InputDNA, nameList, enzNames, incubationTemp)
 	return frags
 
 class Overhang(object):
@@ -574,14 +585,14 @@ class Overhang(object):
 
 class DNA(object):
 	#for linear DNAs, this string should include the entire sequence (5' and 3' overhangs included
-	def __init__(self, seq="",DNAclass="", name=""):
+	def __init__(self, DNAclass="", name="", seq=""):
 		self.sequence = seq
 		self.length = len(seq)
 		notDNA = re.compile('([^gatcrymkswhbvdn])')
 		isnotDNA = False
 		exceptionText = "" 
 		for m in notDNA.finditer(self.sequence.lower()):
-			exceptionText = exceptionText + m.group()+ " at position "+ str( m.start()) + " is not valid IUPAC DNA."
+			exceptionText += m.group() + " at position "+ str( m.start()) + " is not valid IUPAC DNA. "
 			isnotDNA = True
 		if(isnotDNA):
 			raise Exception(exceptionText)
@@ -625,7 +636,7 @@ class DNA(object):
 	def find(self, string):
 		return 0
 	def clone(self):
-		clone = DNA(self.sequence, self.DNAclass, self.name)
+		clone = DNA(self.DNAclass, self.name, self.sequence)
 		clone.topLeftOverhang = Overhang(self.topLeftOverhang.sequence)
 		clone.topRightOverhang = Overhang(self.topRightOverhang.sequence)
 		clone.bottomLeftOverhang = Overhang(self.bottomLeftOverhang.sequence)
@@ -869,14 +880,26 @@ def SetFlags(frag):
 		BR = 1
 	return (TL,TR,BL,BR)
 
+def ligatePostProcessing(ligated, childrenTuple, message):
+	ligated.setChildren(childrenTuple)
+	for child in childrenTuple:
+		child.addParent(ligated)
+	ligated.setTimeStep(0.5)
+	ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
+	ligated.instructions = message
+	return ligated
+
 # Description: Ligate() function accepts a list of DNA() digest objects, and outputs list of DNA
 def Ligate(inputDNAs):
 	products = []
 	# self ligation
 	for fragment in inputDNAs:
+		if not isinstance(fragment, DNA):
+			raise Exception('*Ligate Error*: Ligate function was passed a non-DNA argument. Argument discarded.')
+			continue
 		(TL,TR,BL,BR) = SetFlags(fragment)
 		if fragment.DNAclass != 'digest':
-			print 'WARNING: For ligation reaction, invalid input molecule removed -- ligation input DNA objects must be of class \'digest\'.'
+			raise Exception('*Ligate Error*: for ligation reaction, invalid input molecule removed -- ligation input DNA objects must be of class \'digest\'.')
 		elif TL+TR+BL+BR == 1:
 			pass
 		elif TL+TR+BL+BR == 0:
@@ -885,30 +908,28 @@ def Ligate(inputDNAs):
 			pass
 		elif fragment.topLeftOverhang.sequence != '':
 			if fragment.topLeftOverhang.sequence.lower() == Complement(fragment.bottomRightOverhang.sequence.lower()):
-				ligated = DNA(fragment.topLeftOverhang.sequence+fragment.sequence,'plasmid',fragment.name+' self-ligation')
-				ligated.setChildren((fragment, ))
-				fragment.addParent(ligated)
-				ligated.setTimeStep(.5)
-				ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
-				ligated.instructions = 'Self-ligate ('+fragment.name+') with DNA ligase for 30 minutes at room-temperature.'
-				products.append(ligated)
+				ligated = DNA('plasmid',fragment.name+' self-ligation',fragment.topLeftOverhang.sequence+fragment.sequence)
+				products.append(ligatePostProcessing(ligated, (fragment, ), 'Self-ligate ('+fragment.name+') with DNA ligase for 30 minutes at room-temperature.'))
 		elif fragment.bottomLeftOverhang.sequence != '':
 			if fragment.topLeftOverhang.sequence.lower() == Complement(fragment.topRightOverhang.sequence.lower()):
-				ligated = DNA(fragment.sequence+fragment.topRightOverhang.sequence,'plasmid',fragment.name+' self-ligation')
-				ligated.setChildren((fragment, ))
-				fragment.addParent(ligated)
-				ligated.setTimeStep(.5)
-				ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
-				ligated.instructions = 'Self-ligate ('+fragment.name+') with DNA ligase for 30 minutes at room-temperature.'
-				products.append(ligated)
+				ligated = DNA('plasmid',fragment.name+' self-ligation',fragment.sequence+fragment.topRightOverhang.sequence)
+				products.append(ligatePostProcessing(ligated, (fragment, ), 'Self-ligate ('+fragment.name+') with DNA ligase for 30 minutes at room-temperature.'))
 	if len(products) > 0 or len(inputDNAs) == 1:
 		return products
 	i = 0
 	while i < len(inputDNAs):
 		fragOne = inputDNAs[i]
+		if not isinstance(fragOne, DNA):
+			raise Exception('*Ligate Error*: Ligate function was passed a non-DNA argument. Argument discarded.')
+			i += 1
+			continue
 		j = i + 1
 		while j < len(inputDNAs):
 			fragTwo = inputDNAs[j]
+			if not isinstance(fragOne, DNA):
+				raise Exception('*Ligate Error*: Ligate function was passed a non-DNA argument. Argument discarded.')
+				j += 1
+				continue
 			(LTL,LTR,LBL,LBR) = SetFlags(fragOne)
 			(RTL,RTR,RBL,RBR) = SetFlags(fragTwo)
 			# first3 is the number of 3' overhangs for the left fragment, and so on for the other three classifiers
@@ -916,24 +937,12 @@ def Ligate(inputDNAs):
 			if first3 == 2:
 				if fragOne.topRightOverhang.sequence.upper() == Complement(fragTwo.bottomLeftOverhang.sequence).upper():
 					if fragOne.bottomLeftOverhang.sequence.upper() == Complement(fragTwo.topRightOverhang.sequence).upper():
-						ligated = DNA(fragOne.sequence+fragOne.topRightOverhang.sequence+fragTwo.sequence+fragTwo.topRightOverhang.sequence,'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
-						ligated.setChildren((fragOne, fragTwo))
-						fragOne.addParent(ligated)
-						fragTwo.addParent(ligated)
-						ligated.setTimeStep(.5)
-						ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
-						ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
-						products.append(ligated)
+						ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.sequence+fragOne.topRightOverhang.sequence+fragTwo.sequence+fragTwo.topRightOverhang.sequence)
+						products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
 				if fragOne.topRightOverhang.sequence.upper() == reverseComplement(fragTwo.topRightOverhang.sequence).upper():
 					if fragOne.bottomLeftOverhang.sequence.upper() == reverseComplement(fragTwo.bottomLeftOverhang.sequence).upper():
-						ligated = DNA(fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence)+reverse(fragTwo.bottomLeftOverhang.sequence),'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
-						ligated.setChildren((fragOne, fragTwo))
-						fragOne.addParent(ligated)
-						fragTwo.addParent(ligated)
-						ligated.setTimeStep(.5)
-						ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
-						ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
-						products.append(ligated)
+						ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence)+reverse(fragTwo.bottomLeftOverhang.sequence))
+						products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
 			elif first3 == 1:
 				if LTR:
 					# then you know it must have LTL
@@ -941,119 +950,96 @@ def Ligate(inputDNAs):
 						# then, if it is to ligate, it must have compatible RTL
 						if fragOne.topRightOverhang.sequence.upper() == reverseComplement(fragTwo.topRightOverhang.sequence).upper():
 							if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.topLeftOverhang.sequence).upper():
-								ligated = DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence),'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
-								ligated.setChildren((fragOne, fragTwo))
-								fragOne.addParent(ligated)
-								fragTwo.addParent(ligated)
-								ligated.setTimeStep(.5)
-								ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
-								ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
-								products.append(ligated)
+								ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.topLeftOverhang.sequence+fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence))
+								products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
 					else:
 						# to ligate, it must have RBL and RBR
 						if fragOne.topRightOverhang.sequence.upper() == Complement(fragTwo.bottomLeftOverhang.sequence).upper():
 							if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.bottomRightOverhang.sequence).upper():
-								ligated = DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragOne.topRightOverhang.sequence+fragTwo.sequence,'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
-								ligated.setChildren((fragOne, fragTwo))
-								fragOne.addParent(ligated)
-								fragTwo.addParent(ligated)
-								ligated.setTimeStep(.5)
-								ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
-								ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
-								products.append(ligated)
+								ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.topLeftOverhang.sequence+fragOne.sequence+fragOne.topRightOverhang.sequence+fragTwo.sequence)
+								products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
 				else:
 					# you know it has LBL as its 3 and LBR as its 5
 					if RTR:
 					# then, if it is to ligate, it must have compatible RTL
 						if fragTwo.topRightOverhang.sequence.upper() == Complement(fragOne.bottomLeftOverhang.sequence).upper():
 							if fragTwo.topLeftOverhang.sequence.upper() == Complement(fragOne.topLeftOverhang.sequence).upper():
-								ligated = DNA(fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence+fragTwo.topRightOverhang.sequence,'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
-								ligated.setChildren((fragOne, fragTwo))
-								fragOne.addParent(ligated)
-								fragTwo.addParent(ligated)
-								ligated.setTimeStep(.5)
-								ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
-								ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
-								products.append(ligated)
+								ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence+fragTwo.topRightOverhang.sequence)
+								products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
 					else:
 						# to ligate, it must have RBL and RBR
 						if fragOne.bottomRightOverhang.sequence.upper() == reverseComplement(fragTwo.bottomRightOverhang.sequence).upper():
 							if fragOne.bottomLeftOverhang.sequence.upper() == reverseComplement(fragTwo.bottomLeftOverhang.sequence).upper():
-								ligated = DNA(Complement(fragOne.bottomLeftOverhang.sequence)+fragOne.sequence+Complement(fragOne.bottomRightOverhang.sequence)+reverseComplement(fragTwo.sequence),'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
-								ligated.setChildren((fragOne, fragTwo))
-								fragOne.addParent(ligated)
-								fragTwo.addParent(ligated)
-								ligated.setTimeStep(.5)
-								ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
-								ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
-								products.append(ligated)
+								ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',Complement(fragOne.bottomLeftOverhang.sequence)+fragOne.sequence+Complement(fragOne.bottomRightOverhang.sequence)+reverseComplement(fragTwo.sequence))
+								products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
 			else:
 				if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.bottomRightOverhang.sequence).upper():
 					if fragOne.bottomRightOverhang.sequence.upper() == Complement(fragTwo.topLeftOverhang.sequence).upper():
-						ligated = DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence,'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')
-						ligated.setChildren((fragOne, fragTwo))
-						fragOne.addParent(ligated)
-						fragTwo.addParent(ligated)
-						ligated.setTimeStep(.5)
-						ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
-						ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
-						products.append(ligated)
+						ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.topLeftOverhang.sequence+fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence)
+						products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
 				if fragOne.topLeftOverhang.sequence.upper() == reverseComplement(fragTwo.topLeftOverhang.sequence).upper():
 					if fragOne.bottomRightOverhang.sequence.upper() == reverseComplement(fragTwo.bottomRightOverhang.sequence.upper()):
-						ligated = DNA(fragOne.topLeftOverhang.sequence+fragOne.sequence+reverse(fragTwo.bottomRightOverhang.sequence)+reverseComplement(fragTwo.sequence),'plasmid',fragOne.name+', '+fragTwo.name+' ligation product')		
-						ligated.setChildren((fragOne, fragTwo))
-						fragOne.addParent(ligated)
-						fragTwo.addParent(ligated)
-						ligated.setTimeStep(.5)
-						ligated.addMaterials(['DNA Ligase','DNA Ligase Buffer','ddH20'])
-						ligated.instructions = 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'
-						products.append(ligated)
-			j = j + 1
-		i = i + 1
+						ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.topLeftOverhang.sequence+fragOne.sequence+reverse(fragTwo.bottomRightOverhang.sequence)+reverseComplement(fragTwo.sequence))		
+						products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+			j += 1
+		i += 1
+	if len(products) == 0:
+		raise Exception('*Ligate Error*: ligation resulted in zero products. Returning empty list.')	
 	return products
 
-# TODO: condense and comment
+# Description: fragment processing function for zymo, short fragment and gel cleanups
+def cleanupPostProcessing(band, source):
+	parentBand = band.clone()
+	parentBand.setChildren((band,))
+	band.addParent(parentBand)
+	timeStep = 0.5
+	cleanupMaterials = ['Zymo Column','Buffer PE','ddH20']
+	if source == 'short fragment':
+		cleanupMaterials.append('Ethanol / Isopropanol')
+	elif source == 'gel extraction and short fragment':
+		cleanupMaterials += ['Buffer ADB', 'Ethanol / Isopropanol']
+		timeStep = 1
+	elif source == 'gel extraction and zymo':
+		cleanupMaterials.append('Buffer ADB')
+		timeStep = 1
+	parentBand.setTimeStep(timeStep)
+	parentBand.addMaterials(cleanupMaterials)
+	parentBand.instructions = 'Perform '+source+' cleanup on ('+band.name+').'
+	return parentBand
+
 # Description: ZymoPurify() function takes a list of DNA objects and filters out < 300 bp DNA's
 def ZymoPurify(inputDNAs):
+	counter = 0
+	for zymoInput in inputDNAs:
+		if not isinstance(zymoInput, DNA):
+			raise Exception('*Zymo Error*: Zymo purification function was passed a non-DNA argument. Argument discarded.')
+			inputDNAs.pop(counter)
+		else:
+			counter += 1
 	if len(inputDNAs) == 0:
-		print 'WARNING: Zymo purification function passed empty input list -- will return empty output'
+		raise Exception('*Zymo Error*: Zymo purification function passed empty input list -- will return empty output.')
 		return inputDNAs
-	outputBands = []
-	sizeTuples = []
+	(outputBands, sizeTuples) = ([], [])
 	for DNA in inputDNAs:
-		fragSize = len(DNA.sequence)
-		sizeTuples.append((fragSize,DNA))
+		sizeTuples.append((len(DNA.sequence),DNA))
 	sizeTuples.sort(reverse=True)
 	currentTuple = sizeTuples[0]
 	currentSize = currentTuple[0]
-	while currentSize > 300 and len(sizeTuples) > 1:
+	while currentSize > 300:
 		band = currentTuple[1]
-		parentBand = band.clone()
-		parentBand.setChildren(band)
-		band.addParent(parentBand)
-		parentBand.setTimeStep(.5)
-		parentBand.addMaterials(['Zymo Column','Buffer PE','ddH20'])
-		parentBand.instructions = 'Perform standard zymo cleanup on ('+band.name+').'
-		outputBands.append(parentBand)
-		sizeTuples.pop(0)
-		currentTuple = sizeTuples[0]
-		currentSize = currentTuple[0]
-	if currentSize > 300:
-		band = currentTuple[1]
-		parentBand = band.clone()
-		parentBand.setChildren(band)
-		band.addParent(parentBand)
-		parentBand.setTimeStep(.5)
-		parentBand.addMaterials(['Zymo Column','Buffer PE','ddH20'])
-		parentBand.instructions = 'Perform standard zymo cleanup on ('+band.name+').'
-		outputBands.append(parentBand)
+		outputBands.append(cleanupPostProcessing(band,'standard zymo'))
+		if len(sizeTuples) > 0:
+			sizeTuples.pop(0)
+			currentTuple = sizeTuples[0]
+			currentSize = currentTuple[0]
+		else:
+			break
 	return outputBands
 
-# TODO: condense and comment
 # Description: ShortFragmentCleanup() function takes a list of DNA objects and filters out < 50 bp DNA's
 def ShortFragmentCleanup(inputDNAs):
 	if len(inputDNAs) == 0:
-		print 'WARNING: ShortFragmentCleanup function passed empty input list -- will return empty output'
+		raise Exception('*Short Fragment Cleanup Error*: short fragment cleanup function passed empty input list -- will return empty output.')
 		return inputDNAs
 	outputBands = []
 	sizeTuples = []
@@ -1065,45 +1051,27 @@ def ShortFragmentCleanup(inputDNAs):
 	currentSize = currentTuple[0]
 	while currentSize > 50 and len(sizeTuples) > 1:
 		band = currentTuple[1]
-		parentBand = band.clone()
-		parentBand.setChildren(band)
-		band.addParent(parentBand)
-		parentBand.setTimeStep(.5)
-		parentBand.addMaterials(['Zymo Column','Buffer PE','ddH20','Ethanol/Isopropanol'])
-		parentBand.instructions = 'Perform short fragment cleanup on ('+band.name+').'
-		outputBands.append(parentBand)
+		outputBands.append(cleanupPostProcessing(band,'short fragment'))
 		sizeTuples.pop(0)
 		currentTuple = sizeTuples[0]
 		currentSize = currentTuple[0]
 	if currentSize > 50:
 		band = currentTuple[1]
-		parentBand = band.clone()
-		parentBand.setChildren(band)
-		band.addParent(parentBand)
-		parentBand.setTimeStep(.5)
-		parentBand.addMaterials(['Zymo Column','Buffer PE','ddH20','Ethanol/Isopropanol'])
-		parentBand.instructions = 'Perform short fragment cleanup on ('+band.name+').'
-		outputBands.append(parentBand)
+		outputBands.append(cleanupPostProcessing(band,'short fragment'))
 	return outputBands
 
-# TODO: condense and comment
 # Description: GelAndZymoPurify() function employs a user-specified purification strategy to cut out a range of band sizes, and
 # then filters out < 300 bp DNA's. If 50 bp < [ ] < 300 bp DNAs are detected, switches to short fragment cleanup mode.
 def GelAndZymoPurify(inputDNAs, strategy):
 	# sort based on size
-	shortFlag = False
-	lostFlag = False
 	if len(inputDNAs) == 0:
-		print "WARNING: Gel purification with strategy \'"+strategy+"\' passed empty input list -- will return empty output"
+		raise Exception('*Gel Purification Error*: gel purification with strategy \'"+strategy+"\' passed empty input list -- will return empty output')
 		return inputDNAs
 	elif len(inputDNAs) == 1:
 		return inputDNAs
-	interBands = []
-	outputBands = []
-	sizeTuples = []
+	(shortFlag, lostFlag, interBands, outputBands, sizeTuples) = (False, False, [], [], [])
 	for DNA in inputDNAs:
-		fragSize = len(DNA.sequence)
-		sizeTuples.append((fragSize,DNA))
+		sizeTuples.append((len(DNA.sequence),DNA))
 	if isinstance( strategy, str):
 		if strategy == 'L':
 			sizeTuples.sort(reverse=True)
@@ -1113,7 +1081,7 @@ def GelAndZymoPurify(inputDNAs, strategy):
 			currentSize = largestSize
 			while currentSize > largestSize * 5/6 and n < len(sizeTuples) - 1:
 				interBands.append(currentTuple[1])
-				n = n + 1
+				n += 1
 				currentTuple = sizeTuples[n]
 				currentSize = currentTuple[0]
 			if currentSize > largestSize * 5/6:
@@ -1123,7 +1091,7 @@ def GelAndZymoPurify(inputDNAs, strategy):
 					shortFlag = True
 				interBands.append(currentTuple[1])
 			if len(interBands) > 1:
-				print "WARNING: large fragment purification resulted in purification of multiple, possibly unintended distinct DNAs."
+				raise Exception('*Gel Purification Error*: large fragment purification resulted in purification of multiple, possibly unintended distinct DNAs.')
 		elif strategy == 'S':
 			sizeTuples.sort()
 			n = 0
@@ -1142,7 +1110,7 @@ def GelAndZymoPurify(inputDNAs, strategy):
 					shortFlag = True
 				interBands.append(currentTuple[1])
 			if len(interBands) > 1:
-				print "WARNING: small fragment purification resulted in purification of multiple, possibly unintended distinct DNAs."
+				raise Exception('*Gel Purification Error*: small fragment purification resulted in purification of multiple, possibly unintended distinct DNAs.')
 	elif isinstance( strategy, ( int, long ) ):
 		sizeTuples.sort(reverse=True)
 		currentTuple = sizeTuples[0]
@@ -1163,43 +1131,27 @@ def GelAndZymoPurify(inputDNAs, strategy):
 				shortFlag = True
 			interBands.append(currentTuple[1])
 		if len(interBands) == 0:
-			print "WARNING: For gel purification with strategy \'"+strategy+"\', no digest bands present in given range, with purification yielding zero DNA products."
+			raise Exception('*Gel Purification Error*: for gel purification with strategy \'"+strategy+"\', no digest bands present in given range, with purification yielding zero DNA products.')
 		elif len(interBands) > 1:
-			print "WARNING: Fragment purification in range of band size '"+str(strategy)+"' resulted in purification of multiple, possibly unintended distinct DNAs."
+			raise Exception('*Gel Purification Error*: fragment purification in range of band size '"+str(strategy)+"' resulted in purification of multiple, possibly unintended distinct DNAs.')
+	else:
+		raise Exception('*Gel Purification Error*: invalid cleanup strategy argument. Valid arguments are \'L\', \'S\', or integer size of band.')
 	if len(interBands) == 0:
 		if lostFlag:
-			print "WARNING: Purification with given strategy \'"+strategy+"\' returned short fragments (< 50 bp) that were lost. Returning empty products list."
-		print "WARNING: Purification with given strategy '"+strategy+"' yielded zero products. Returning empty products list."
+			raise Exception('*Gel Purification Error*: purification with given strategy \'"+strategy+"\' returned short fragments (< 50 bp) that were lost. Returning empty products list.')
+		raise Exception('*Gel Purification Error*: purification with given strategy "'+strategy+'" yielded zero products. Returning empty products list.')
 	else:
 		if lostFlag:
-			print "WARNING: Purification with given strategy \'"+strategy+"\' returned at least one short fragment (< 50 bp) that was lost. Returning remaining products."
+			raise Exception('*Gel Purification Error*: purification with given strategy "'+strategy+'" returned at least one short fragment (< 50 bp) that was lost. Returning remaining products.')
 			for band in interBands:
-				parentBand = band.clone()
-				parentBand.setChildren((band,))
-				band.addParent(parentBand)
-				parentBand.setTimeStep(1)
-				parentBand.addMaterials(['Zymo Column','Buffer ADB','Buffer PE','ddH20'])
-				parentBand.instructions = 'Gel purify ('+band.name+'), followed by short fragment cleanup.'
-				outputBands.append(parentBand)
+				outputBands.append(cleanupPostProcessing(band,'gel extraction and zymo'))
 		elif shortFlag:
-			print "WARNING: Purification with given strategy \'"+strategy+"\' yielded short fragments (< 300 bp). Returning short fragment cleanup products."
+			raise Exception('*Gel Purification Error*: purification with given strategy "'+strategy+'" yielded short fragments (< 300 bp). Returning short fragment cleanup products.')
 			for band in interBands:
-				parentBand = band.clone()
-				parentBand.setChildren((band,))
-				band.addParent(parentBand)
-				parentBand.setTimeStep(1)
-				parentBand.addMaterials(['Zymo Column','Buffer ADB','Buffer PE','ddH20','Ethanol/Isopropanol'])
-				parentBand.instructions = 'Gel purify ('+band.name+'), followed by short fragment cleanup.'
-				outputBands.append(parentBand)
+				outputBands.append(cleanupPostProcessing(band,'gel extraction and short fragment'))
 		else:
 			for band in interBands:
-				parentBand = band.clone()
-				parentBand.setChildren((band,))
-				band.addParent(parentBand)
-				parentBand.setTimeStep(1)
-				parentBand.addMaterials(['Zymo Column','Buffer ADB','Buffer PE','ddH20'])
-				parentBand.instructions = 'Gel purify ('+band.name+'), followed by standard zymo cleanup.'
-				outputBands.append(parentBand)
+				outputBands.append(cleanupPostProcessing(band,'gel extraction and zymo'))
 	return outputBands
 
 # Description: HasFeature() function checks for presence of regex-encoded feature in seq
@@ -1325,11 +1277,11 @@ def TransformPlateMiniprep(DNAs, strain, selection_antibiotic):
 				print success_msg
 			else:
 				if not(newR):
-					print "WARNING: For transformation of "+dna.name+" into "+strain.name+", plasmid either doesn't have an antibiotic resistance or doesn't confer a new one on this strain"
+					raise Exception('*Transformation Error*: for transformation of '+dna.name+' into '+strain.name+', plasmid either doesn\'t have an antibiotic resistance or doesn\'t confer a new one on this strain')
 				if not(replicon_ok):
-					print "WARNING: For transformation of "+dna.name+" into "+strain.name+", plasmid replicon won't function in this strain"
+					raise Exception('*Transformation Error*: for transformation of "'+dna.name+'" into "'+strain.name+'", plasmid replicon won\'t function in this strain')
 				if not(no_existing_plasmid):
-					print "WARNING: For transformation of "+dna.name+" into "+strain.name+", transformed plasmid replicon competes with existing plasmid in strain"
+					raise Exception('*Transformation Error*: for transformation of "'+dna.name+'" into "'+strain.name+'", transformed plasmid replicon competes with existing plasmid in strain')
 	if len(transformed)<1:
 		print "WARNING: For transformation of "+dna.name+" into "+strain.name+", no DNAs successfully transformed. DNAs may be linear."
 	return transformed
