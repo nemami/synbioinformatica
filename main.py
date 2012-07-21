@@ -113,7 +113,6 @@ class MainHandler(webapp.RequestHandler):
 			else:
 				# get output from buffer
 				data["text"] = sys.stdout.getvalue()
-			
 		except Exception, e:
 			exception_data = StringIO.StringIO()
 			traceback.print_exc(file=exception_data)
