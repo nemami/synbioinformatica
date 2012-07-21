@@ -399,14 +399,14 @@ def restrictionSearch(Enzymes, InputDNA, indices, totalLength):
 		for site in sites:
 			# WARNING: end proximity for linear fragments exception
 			if InputDNA.topology == 'linear' and int(site[0]) - int(enzyme.endDistance) < 0 or int(site[1]) + int(enzyme.endDistance) > totalLength:
-				raise Exception('*Digest Error*: end proximity for '+enzyme.name+' restriction site at indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' for input with length '+str(totalLength))
+				raise Exception('*Digest Error*: end proximity for '+enzyme.name+' restriction site at indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' for input '+InputDNA.name+' (length '+str(totalLength)+')')
 				if InputDNA.topology == 'linear' and site[2] == 'antisense' and site[1] - max(enzyme.bottom_strand_offset,enzyme.top_strand_offset) < 0:
-					raise Exception('Digest Error*: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input with length '+str(totalLength))
+					raise Exception('Digest Error*: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input '+InputDNA.name+' (length '+str(totalLength)+')')
 				else:
 					pass
 			# WARNING: restriction index out of bounds exception
 			elif InputDNA.topology == 'linear' and site[2] == 'antisense' and site[1] - max(enzyme.bottom_strand_offset,enzyme.top_strand_offset) < 0:
-				raise Exception('Digest Error*: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input with length '+str(totalLength))
+				raise Exception('Digest Error*: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input '+InputDNA.name+' (length '+str(totalLength)+')')
 			else: 
 				site = site + (enzyme, )
 				indices.append(site)
