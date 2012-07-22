@@ -659,7 +659,7 @@ class DNA(object):
 					brExtra = self.bottomRightOverhang.sequence
 				print "\t"+self.topLeftOverhang.sequence+' '*len(self.bottomLeftOverhang.sequence)+self.sequence[:4]+'.'*3+'['+str(len(self.sequence)-8)+'bp]'+'.'*3+self.sequence[len(self.sequence)-4:]+trExtra
 				print "\t"+' '*len(self.topLeftOverhang.sequence)+'|'*4+' '*(10+len(str(len(self.sequence)-8)))+'|'*4
-				print "\t"+' '*len(self.topLeftOverhang.sequence)+self.bottomLeftOverhang.sequence+reverseComplement(self.sequence[:4])+'.'*(10+len(str(len(self.sequence)-8)))+reverseComplement(self.sequence[len(self.sequence)-4:])+brExtra
+				print "\t"+' '*len(self.topLeftOverhang.sequence)+self.bottomLeftOverhang.sequence+Complement(self.sequence[:4])+'.'*(10+len(str(len(self.sequence)-8)))+Complement(self.sequence[len(self.sequence)-4:])+brExtra
 			else:
 				trExtra = ''
 				brExtra = ''
@@ -669,18 +669,18 @@ class DNA(object):
 					brExtra = self.bottomRightOverhang.sequence
 				print "\t"+self.topLeftOverhang.sequence+' '*len(self.bottomLeftOverhang.sequence)+self.sequence+trExtra
 				print "\t"+' '*len(self.topLeftOverhang.sequence)+'|'*len(self.sequence)
-				print "\t"+' '*len(self.topLeftOverhang.sequence)+self.bottomLeftOverhang.sequence+reverseComplement(self.sequence)+brExtra
+				print "\t"+' '*len(self.topLeftOverhang.sequence)+self.bottomLeftOverhang.sequence+Complement(self.sequence)+brExtra
 		else:
 			if len(self.sequence) > 8:
 				print "\t"+self.sequence[:4]+'.'*3+'['+str(len(self.sequence)-8)+'bp]'+'.'*3+self.sequence[len(self.sequence)-4:]
 				print "\t"+'|'*4+' '*(10+len(str(len(self.sequence)-8)))+'|'*4
-				print "\t"+reverseComplement(self.sequence[:4])+'.'*(10+len(str(len(self.sequence)-8)))+reverseComplement(self.sequence[len(self.sequence)-4:])
+				print "\t"+Complement(self.sequence[:4])+'.'*(10+len(str(len(self.sequence)-8)))+Complement(self.sequence[len(self.sequence)-4:])
 			else:
 				print "\t"+self.sequence
 				print "\t"+'|'*len(self.sequence)
-				print "\t"+reverseComplement(self.sequence)
+				print "\t"+Complement(self.sequence)
 		return 0
-	
+
 # Description: BaseExpand() for regex generation, taken from BioPython
 def BaseExpand(base):
     """BaseExpand(base) -> string.
