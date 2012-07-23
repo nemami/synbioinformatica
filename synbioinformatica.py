@@ -597,13 +597,13 @@ class DNA(object):
 		if(isnotDNA):
 			raise Exception(exceptionText)
 		self.name = name 	#would be pbca1256 for vectors or pbca1256-Bth8199 for plasmids
-		self.description = "SpecR pUC"							 #this is for humans to read
+		# self.description = "SpecR pUC"							 #this is for humans to read
 		self.dam_methylated = True
-		# self.overhang = "circular" #blunt, 3', 5', circular... should be a class in itself?
 		self.topLeftOverhang = Overhang('')
 		self.bottomLeftOverhang = Overhang('')
 		self.topRightOverhang = Overhang('')
 		self.bottomRightOverhang = Overhang('')
+		self.pnkTreated = False
 		#PCR product, miniprep, genomic DNA
 		self.DNAclass = DNAclass
 		self.provenance = ""
@@ -629,6 +629,8 @@ class DNA(object):
 		self.parents.append(DNA)
 	def addMaterials(self, materialsList):
 		self.materials += materialsList
+	def phosphorylate(self):
+		self.pnkTreated = True
 	def setTimeStep(self, timeStep):
 		self.timeStep = timeStep
 	def setChildren(self, inputDNAs):
@@ -780,6 +782,13 @@ class restrictionEnzyme(object):
 				indices.append(span)	
 		return indices
 
+# Description: phosphorylates 5' end of DNA molecule, allowing blunt end ligation
+# see http://openwetware.org/wiki/PNK_Treatment_of_DNA_Ends
+def TreatPNK(inputDNAs):
+	for inputDNA in inputDNAs:
+		inputDNA.phosphorylate()
+	return inputDNAs
+
 # Description: DigestBuffer() function finds the optimal digestBuffer
 # todo: If Buffer 2 > 150, return Buffer 2 and list of activity values, else, return buffer 1, 3, or 4 (ignore EcoRI)
 # return format will be list, [rec_buff, [buff1_act, buff2_act...buff4_Act]]
@@ -889,6 +898,20 @@ def ligatePostProcessing(ligated, childrenTuple, message):
 	ligated.instructions = message
 	return ligated
 
+def isComplementary(seq1, seq2):
+	if seq1 == '' or seq2 == '':
+		return False
+	elif seq1 == Complement(seq2):
+		return True
+	return False
+
+def isReverseComplementary(seq1, seq2):
+	if seq1 == '' or seq2 == '':
+		return False
+	elif seq1 == reverseComplement(seq2):
+		return True
+	return False
+
 # Description: Ligate() function accepts a list of DNA() digest objects, and outputs list of DNA
 def Ligate(inputDNAs):
 	products = []
@@ -898,8 +921,8 @@ def Ligate(inputDNAs):
 			raise Exception('*Ligate Error*: Ligate function was passed a non-DNA argument. Argument discarded.')
 			continue
 		(TL,TR,BL,BR) = SetFlags(fragment)
-		if fragment.DNAclass != 'digest':
-			raise Exception('*Ligate Error*: for ligation reaction, invalid input molecule removed -- ligation input DNA objects must be of class \'digest\'.')
+		if fragment.DNAclass == 'plasmid':
+			raise Exception('*Ligate Error*: for ligation reaction, invalid input molecule removed -- ligation input DNA objects must be of class \'digest\' or be PNK treated linear molecules.')
 		elif TL+TR+BL+BR == 1:
 			pass
 		elif TL+TR+BL+BR == 0:
@@ -907,11 +930,11 @@ def Ligate(inputDNAs):
 			# and then return circular product of same sequence.
 			pass
 		elif fragment.topLeftOverhang.sequence != '':
-			if fragment.topLeftOverhang.sequence.lower() == Complement(fragment.bottomRightOverhang.sequence.lower()):
+			if isComplementary(fragment.topLeftOverhang.sequence.lower(), fragment.bottomRightOverhang.sequence.lower()):
 				ligated = DNA('plasmid',fragment.name+' self-ligation',fragment.topLeftOverhang.sequence+fragment.sequence)
 				products.append(ligatePostProcessing(ligated, (fragment, ), 'Self-ligate ('+fragment.name+') with DNA ligase for 30 minutes at room-temperature.'))
 		elif fragment.bottomLeftOverhang.sequence != '':
-			if fragment.topLeftOverhang.sequence.lower() == Complement(fragment.topRightOverhang.sequence.lower()):
+			if isComplementary(fragment.topLeftOverhang.sequence.lower(), fragment.topRightOverhang.sequence.lower()):
 				ligated = DNA('plasmid',fragment.name+' self-ligation',fragment.sequence+fragment.topRightOverhang.sequence)
 				products.append(ligatePostProcessing(ligated, (fragment, ), 'Self-ligate ('+fragment.name+') with DNA ligase for 30 minutes at room-temperature.'))
 	if len(products) > 0 or len(inputDNAs) == 1:
@@ -926,7 +949,7 @@ def Ligate(inputDNAs):
 		j = i + 1
 		while j < len(inputDNAs):
 			fragTwo = inputDNAs[j]
-			if not isinstance(fragOne, DNA):
+			if not isinstance(fragOne, DNA) or not isinstance(fragTwo, DNA):
 				raise Exception('*Ligate Error*: Ligate function was passed a non-DNA argument. Argument discarded.')
 				j += 1
 				continue
@@ -934,53 +957,91 @@ def Ligate(inputDNAs):
 			(RTL,RTR,RBL,RBR) = SetFlags(fragTwo)
 			# first3 is the number of 3' overhangs for the left fragment, and so on for the other three classifiers
 			(first3, first5, second3, second5) = (LTR + LBL, LBR + LTL, RTR + RBL, RBR + RTL)
-			if first3 == 2:
-				if fragOne.topRightOverhang.sequence.upper() == Complement(fragTwo.bottomLeftOverhang.sequence).upper():
-					if fragOne.bottomLeftOverhang.sequence.upper() == Complement(fragTwo.topRightOverhang.sequence).upper():
-						ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.sequence+fragOne.topRightOverhang.sequence+fragTwo.sequence+fragTwo.topRightOverhang.sequence)
-						products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
-				if fragOne.topRightOverhang.sequence.upper() == reverseComplement(fragTwo.topRightOverhang.sequence).upper():
-					if fragOne.bottomLeftOverhang.sequence.upper() == reverseComplement(fragTwo.bottomLeftOverhang.sequence).upper():
-						ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence)+reverse(fragTwo.bottomLeftOverhang.sequence))
-						products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
-			elif first3 == 1:
-				if LTR:
-					# then you know it must have LTL
-					if RTR:
-						# then, if it is to ligate, it must have compatible RTL
-						if fragOne.topRightOverhang.sequence.upper() == reverseComplement(fragTwo.topRightOverhang.sequence).upper():
-							if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.topLeftOverhang.sequence).upper():
-								ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.topLeftOverhang.sequence+fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence))
-								products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+			# blunt end ligation:
+			firstFlag = first3 + first5
+			secondFlag = second3 + second5
+			if fragOne.pnkTreated and fragTwo.pnkTreated and firstFlag <= 1 and secondFlag <= 1:
+				if not firstFlag and secondFlag or firstFlag and not secondFlag:
+					pass
+				elif not firstFlag and not secondFlag:
+					ligated = DNA('plasmid', fragOne.name+', '+fragTwo.name+' ligation product', fragOne.sequence + fragTwo.sequence)
+					products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+				elif firstFlag and secondFlag:
+					if first3 and second3:
+						if isComplementary(fragOne.topRightOverhang.sequence.upper(), fragTwo.bottomLeftOverhang.sequence.upper()):
+							ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.sequence+fragOne.topRightOverhang.sequence+fragTwo.sequence)
+							products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+						if isComplementary(fragOne.bottomLeftOverhang.sequence.upper(), fragTwo.topRightOverhang.sequence.upper()):
+							ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragTwo.sequence+fragTwo.topRightOverhang.sequence+fragOne.sequence)
+							products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+						if isReverseComplementary(fragOne.topRightOverhang.sequence.upper(), fragTwo.topRightOverhang.sequence.upper()):
+							ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence))
+							products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+						if isReverseComplementary(fragOne.bottomLeftOverhang.sequence.upper(), fragTwo.bottomLeftOverhang.sequence.upper()):
+							ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',reverseComplement(fragTwo.sequence)+reverse(fragTwo.bottomLeftOverhang.sequence)+fragOne.sequence)
+							products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
 					else:
-						# to ligate, it must have RBL and RBR
-						if fragOne.topRightOverhang.sequence.upper() == Complement(fragTwo.bottomLeftOverhang.sequence).upper():
-							if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.bottomRightOverhang.sequence).upper():
-								ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.topLeftOverhang.sequence+fragOne.sequence+fragOne.topRightOverhang.sequence+fragTwo.sequence)
-								products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
-				else:
-					# you know it has LBL as its 3 and LBR as its 5
-					if RTR:
-					# then, if it is to ligate, it must have compatible RTL
-						if fragTwo.topRightOverhang.sequence.upper() == Complement(fragOne.bottomLeftOverhang.sequence).upper():
-							if fragTwo.topLeftOverhang.sequence.upper() == Complement(fragOne.topLeftOverhang.sequence).upper():
-								ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence+fragTwo.topRightOverhang.sequence)
-								products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
-					else:
-						# to ligate, it must have RBL and RBR
-						if fragOne.bottomRightOverhang.sequence.upper() == reverseComplement(fragTwo.bottomRightOverhang.sequence).upper():
-							if fragOne.bottomLeftOverhang.sequence.upper() == reverseComplement(fragTwo.bottomLeftOverhang.sequence).upper():
-								ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',Complement(fragOne.bottomLeftOverhang.sequence)+fragOne.sequence+Complement(fragOne.bottomRightOverhang.sequence)+reverseComplement(fragTwo.sequence))
-								products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+						if isComplementary(fragOne.topLeftOverhang.sequence.upper(), fragTwo.bottomRightOverhang.sequence.upper()):
+							ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragTwo.sequence+fragOne.topLeftOverhang.sequence+fragOne.sequence)
+							products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+						if isComplementary(fragOne.bottomRightOverhang.sequence.upper(), fragTwo.topLeftOverhang.sequence.upper()):
+							ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence)
+							products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+						if isReverseComplementary(fragOne.topLeftOverhang.sequence.upper(), fragTwo.topLeftOverhang.sequence.upper()):
+							ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',reverseComplement(fragTwo.sequence)+fragOne.topLeftOverhang.sequence+fragOne.sequence)		
+							products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))	
+						if isReverseComplementary(fragOne.bottomRightOverhang.sequence.upper(), fragTwo.bottomRightOverhang.sequence.upper()):
+							ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.sequence+Complement(fragOne.bottomRightOverhang.sequence)+reverseComplement(fragTwo.sequence))		
+							products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+			# non-blunt ligation: 
 			else:
-				if fragOne.topLeftOverhang.sequence.upper() == Complement(fragTwo.bottomRightOverhang.sequence).upper():
-					if fragOne.bottomRightOverhang.sequence.upper() == Complement(fragTwo.topLeftOverhang.sequence).upper():
-						ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.topLeftOverhang.sequence+fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence)
-						products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
-				if fragOne.topLeftOverhang.sequence.upper() == reverseComplement(fragTwo.topLeftOverhang.sequence).upper():
-					if fragOne.bottomRightOverhang.sequence.upper() == reverseComplement(fragTwo.bottomRightOverhang.sequence.upper()):
-						ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.topLeftOverhang.sequence+fragOne.sequence+reverse(fragTwo.bottomRightOverhang.sequence)+reverseComplement(fragTwo.sequence))		
-						products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+				if first3 == 2:
+					if isComplementary(fragOne.topRightOverhang.sequence.upper(), fragTwo.bottomLeftOverhang.sequence.upper()):
+						if isComplementary(fragOne.bottomLeftOverhang.sequence.upper(), fragTwo.topRightOverhang.sequence.upper()):
+							ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.sequence+fragOne.topRightOverhang.sequence+fragTwo.sequence+fragTwo.topRightOverhang.sequence)
+							products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+					if isReverseComplementary(fragOne.topRightOverhang.sequence.upper(), fragTwo.topRightOverhang.sequence.upper()):
+						if isReverseComplementary(fragOne.bottomLeftOverhang.sequence.upper(), fragTwo.bottomLeftOverhang.sequence.upper()):
+							ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence)+reverse(fragTwo.bottomLeftOverhang.sequence))
+							products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+				elif first3 == 1:
+					if LTR:
+						# then you know it must have LTL
+						if RTR:
+							# then, if it is to ligate, it must have compatible RTL
+							if isReverseComplementary(fragOne.topRightOverhang.sequence.upper(), fragTwo.topRightOverhang.sequence.upper()):
+								if isComplementary(fragOne.topLeftOverhang.sequence.upper(), fragTwo.topLeftOverhang.sequence.upper()):
+									ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.topLeftOverhang.sequence+fragOne.sequence+fragOne.topRightOverhang.sequence+reverseComplement(fragTwo.sequence))
+									products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+						else:
+							# to ligate, it must have RBL and RBR
+							if isComplementary(fragOne.topRightOverhang.sequence.upper(), fragTwo.bottomLeftOverhang.sequence.upper()):
+								if isComplementary(fragOne.topLeftOverhang.sequence.upper(), fragTwo.bottomRightOverhang.sequence.upper()):
+									ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.topLeftOverhang.sequence+fragOne.sequence+fragOne.topRightOverhang.sequence+fragTwo.sequence)
+									products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+					else:
+						# you know it has LBL as its 3 and LBR as its 5
+						if RTR:
+						# then, if it is to ligate, it must have compatible RTL
+							if isComplementary(fragTwo.topRightOverhang.sequence.upper(), fragOne.bottomLeftOverhang.sequence.upper()):
+								if isComplementary(fragTwo.topLeftOverhang.sequence.upper(), fragOne.topLeftOverhang.sequence.upper()):
+									ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence+fragTwo.topRightOverhang.sequence)
+									products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+						else:
+							# to ligate, it must have RBL and RBR
+							if isReverseComplementary(fragOne.bottomRightOverhang.sequence.upper(), fragTwo.bottomRightOverhang.sequence.upper()):
+								if isReverseComplementary(fragOne.bottomLeftOverhang.sequence.upper(), fragTwo.bottomLeftOverhang.sequence.upper()):
+									ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',Complement(fragOne.bottomLeftOverhang.sequence)+fragOne.sequence+Complement(fragOne.bottomRightOverhang.sequence)+reverseComplement(fragTwo.sequence))
+									products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+				else:
+					if isComplementary(fragOne.topLeftOverhang.sequence.upper(), fragTwo.bottomRightOverhang.sequence.upper()):
+						if isComplementary(fragOne.bottomRightOverhang.sequence.upper(), fragTwo.topLeftOverhang.sequence.upper()):
+							ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.topLeftOverhang.sequence+fragOne.sequence+fragTwo.topLeftOverhang.sequence+fragTwo.sequence)
+							products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
+					if isReverseComplementary(fragOne.topLeftOverhang.sequence.upper(), fragTwo.topLeftOverhang.sequence.upper()):
+						if isReverseComplementary(fragOne.bottomRightOverhang.sequence.upper(), fragTwo.bottomRightOverhang.sequence.upper()):
+							ligated = DNA('plasmid',fragOne.name+', '+fragTwo.name+' ligation product',fragOne.topLeftOverhang.sequence+fragOne.sequence+reverse(fragTwo.bottomRightOverhang.sequence)+reverseComplement(fragTwo.sequence))		
+							products.append(ligatePostProcessing(ligated, (fragOne, fragTwo), 'Ligate ('+fragOne.name+', '+fragTwo.name+') with DNA ligase for 30 minutes at room-temperature.'))
 			j += 1
 		i += 1
 	if len(products) == 0:
