@@ -834,8 +834,10 @@ def rPrimers(product, template, baseCase):
   # The sequence should appear random. There shouldn't be long stretches of a single base, or large regions of G/C rich sequence and all A/T in other regions
   # There should be little secondary structure. Ideally the Tm for the oligo should be under 40 degrees. 
   try:
+    # Die after 3 rounds of recursion
     if baseCase == 3:
       return ()
+    # Compute "forward" and "backwards" LCS (i.e. on both sides of a mutation)
     fwdMatch = LCS(template.sequence.upper()+'$', product.sequence.upper())
     (fwdMatchCount, forwardMatchIndicesTuple, forwardPrimerStub) = fwdMatch.LCSasRegex(template.sequence.upper()+'$', product.sequence.upper(), 1)  
     revMatch = LCS(reverse(template.sequence.upper())+'$', reverse(product.sequence.upper()))
@@ -848,10 +850,12 @@ def rPrimers(product, template, baseCase):
       fMI = forwardMatchIndicesTuple
     if not len(reverseMatchIndicesTuple):
       if fFlag:
+        # neither side matches
         raise Exception('No detectable homology on terminal ends of product and template sequences.')
       rMI = (0, 0)
     else:
       rMI = (0 , len(product.sequence) - reverseMatchIndicesTuple[0])
+    # wrap around mutation case
     if not fMI[0] > rMI[1]:
       diffLen = fMI[0] + len(product.sequence) - rMI[1]
       insert = product.sequence[rMI[1]:] + product.sequence[:fMI[0]]
@@ -862,12 +866,14 @@ def rPrimers(product, template, baseCase):
       primers = DesignWobble(product, insert, (rMI[1], fMI[0]))
     elif 1 <= diffLen <= 60:
       primers = DesignEIPCR(product, insert, (rMI[1], fMI[0]))
+    # test the PCR --> will return an exception if they don't anneal
     amplifies = PCR(primers[0], primers[1], template)
     # if it amplifies up ok, then return the primers
     return primers
   # may be misaligned ==> realign and recurse
   except:
     baseCase += 1
+    # If you had an LCS on the fwd direction, re-align using that one
     if fwdMatchCount:
       myLCS = product.sequence[forwardMatchIndicesTuple[0]:forwardMatchIndicesTuple[1]]
       newProduct = DNA('plasmid', product.name, product.sequence[forwardMatchIndicesTuple[0]:] + product.sequence[:forwardMatchIndicesTuple[0]])
@@ -877,6 +883,7 @@ def rPrimers(product, template, baseCase):
         newTemplate = DNA('plasmid', template.name, template.sequence[startSite:]+template.sequence[:startSite])
       else:
         return ()  
+    # If you had an LCS in the rev direction, re-align using that one
     elif revMatchCount:
       myLCS = reverse(reverse(product.sequence)[reverseMatchIndicesTuple[0]:reverseMatchIndicesTuple[1]])
       myMatch = re.search(myLCS.upper(), product.sequence.upper())
@@ -910,30 +917,34 @@ def getAnnealingRegion(template, fwd):
 # print/return warning if can't do this via eipcr (insert span too long)
 
 def DesignEIPCR(product, insert, diffTuple):
+  # use 60 bp to right of mutation as domain for annealing region design
   (fwdStart, fwdEnd) = (diffTuple[1], diffTuple[1]+60)
-  fwdStub = insert[: (len(insert) / 2) + 10]
+  # accounting for the wrap around case
   if fwdEnd > len(product.sequence):
     fwdEnd = fwdEnd % len(product.sequence)
     fwdAnneal = getAnnealingRegion(product.sequence[fwdStart:] + product.sequence[:fwdEnd], 1)
   else:
     fwdAnneal = getAnnealingRegion(product.sequence[fwdStart:fwdEnd], 1)
+  # same with the 60 bp to the left of the mutation
   (revStart, revEnd) = (diffTuple[0]-60, diffTuple[0])
   if revStart < 0:
     revAnneal = getAnnealingRegion(product.sequence[revStart:] + product.sequence[:revEnd], 0)
   else:
     revAnneal = getAnnealingRegion(product.sequence[revStart:revEnd], 0)
-  # use BsaI   taaGGTCTCx1234
+  # use BsaI 'taaGGTCTCx1234' to do reachover digest and ligation
   tail = "taaaGGTCTCA"
+  # wrap around case
   if not diffTuple[1] > diffTuple[0]:
     half = ((diffTuple[1] + len(product.sequence) - diffTuple[0]) / 2) + diffTuple[0]
   else:
     half = ((diffTuple[1] - diffTuple[0]) / 2) + diffTuple[0]
-  #the 4 bp in the overhang must not contain any N's
+  # the 4 bp in the overhang must not contain any N's --> otherwise, ligation won't work
   overhang = product.sequence[half - 2 : half + 2]
   while overhang.upper().__contains__('N'):
       half = half + 1
       overhang = product.sequence[half - 2 : half + 2]
   product.sequence[half - 2 : diffTuple[1] + 1]
+  # Accounting for the == 0 case, which would otherwise send the mutagenic region to ''
   if diffTuple[1] == 0:
    fwdPrimer = DNA('primer','fwd EIPCR '+product.name, tail + product.sequence[half - 2 :] + fwdAnneal)
   else:
