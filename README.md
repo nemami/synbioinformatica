@@ -5,7 +5,6 @@ About
 -----
 - Description: Command line interface for computable molecular / synthetic biology construction files
 - Authors: Nima Emami (nemami) and Tim Hsiau (hsiaut)
-- Contributors: Kelvin Li (KelvinLi), Michael Lin Yang (michaellin)
 - Documentation: in progress
 
 Use
