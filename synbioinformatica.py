@@ -1,9 +1,7 @@
 #!/usr/bin/python -tt
 
-
-import sys, re, math, difflib, random
+import sys, re, math
 from decimal import *
-
 
 # TODO: assemblytree alignment
 # TODO: SOEing, Temperature control, Colony picking?, Sequence() fxn (PCR 1000 bp read), 
@@ -181,11 +179,6 @@ def PCRErrorHandling(InputTuple):
             raise Exception('*Primer error*: primer '+abbrev+' does not anneal in either orientation.')
         return matchedAlready
 
-# Description: provides context specific warnings to user about PCR failure as a result of primer design
-def RaisePrimerError(inputTuple, error):
-    (primer1DNA, primer2DNA, templateDNA) = inputTuple
-    print 'EXCEPTION: For PCR of template ('+templateDNA.name+') with primers ('+primer1DNA.name+', '+primer2DNA.name+'), '+error.message
-
 # Description: assigns relationships for PCR inputs and PCR product for assembly tree purposes
 def pcrPostProcessing(inputTuple, parent, fwdTM, revTM):
     (primer1DNA, primer2DNA, templateDNA) = inputTuple
@@ -205,7 +198,7 @@ def pcrPostProcessing(inputTuple, parent, fwdTM, revTM):
 def PCR(primer1DNA, primer2DNA, templateDNA):
     for pcrInput in (primer1DNA, primer2DNA, templateDNA):
         if not isinstance(pcrInput, DNA):
-            raise Exception('*PCR error*: PCR function was passed a non-DNA argument. Returning output "None".')
+            raise Exception('*PCR error*: PCR function was passed a non-DNA argument.')
             return None
     # Suffix Tree string initialization, non-alphabet character concatenation
     (template, primer_1, primer_2) = (templateDNA.sequence, primer1DNA, primer2DNA)
@@ -400,14 +393,14 @@ def restrictionSearch(Enzymes, InputDNA, indices, totalLength):
         for site in sites:
             # WARNING: end proximity for linear fragments exception
             if InputDNA.topology == 'linear' and int(site[0]) - int(enzyme.endDistance) < 0 or int(site[1]) + int(enzyme.endDistance) > totalLength:
-                raise Exception('*Digest Error*: end proximity for '+enzyme.name+' restriction site at indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' for input '+InputDNA.name+' (length '+str(totalLength)+')')
+                print '\n*Digest Warning*: end proximity for '+enzyme.name+' restriction site at indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' for input '+InputDNA.name+' (length '+str(totalLength)+')\n'
                 if InputDNA.topology == 'linear' and site[2] == 'antisense' and site[1] - max(enzyme.bottom_strand_offset,enzyme.top_strand_offset) < 0:
-                    raise Exception('Digest Error*: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input '+InputDNA.name+' (length '+str(totalLength)+')')
+                    print '\n*Digest Warning*: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input '+InputDNA.name+' (length '+str(totalLength)+')\n'
                 else:
                     pass
             # WARNING: restriction index out of bounds exception
             elif InputDNA.topology == 'linear' and site[2] == 'antisense' and site[1] - max(enzyme.bottom_strand_offset,enzyme.top_strand_offset) < 0:
-                raise Exception('Digest Error*: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input '+InputDNA.name+' (length '+str(totalLength)+')')
+                print '\n*Digest Warning*: restriction cut site for '+enzyme.name+' with recognition indices '+str(site[0]%totalLength)+','+str(site[1]%totalLength)+' out of bounds for input '+InputDNA.name+' (length '+str(totalLength)+')\n'
             else: 
                 site = site + (enzyme, )
                 indices.append(site)
@@ -866,7 +859,7 @@ def rPrimers(product, template, baseCase):
         if not len(reverseMatchIndicesTuple):
             if fFlag:
                 # neither side matches
-                raise Exception('No detectable homology on terminal ends of product and template sequences.')
+                raise Exception('For primer design, no detectable homology on terminal ends of product and template sequences.')
             rMI = (0, 0)
         else:
             rMI = (0 , len(product.sequence) - reverseMatchIndicesTuple[0])
@@ -1057,11 +1050,11 @@ def Ligate(inputDNAs):
     # self ligation
     for fragment in inputDNAs:
         if not isinstance(fragment, DNA):
-            raise Exception('*Ligate Error*: Ligate function was passed a non-DNA argument. Argument discarded.')
+            print '\n*Ligate Error*: Ligate function was passed a non-DNA argument. Argument discarded.\n'
             continue
         (TL,TR,BL,BR) = SetFlags(fragment)
         if fragment.DNAclass == 'plasmid':
-            raise Exception('*Ligate Error*: for ligation reaction, invalid input molecule removed -- ligation input DNA objects must be of class \'digest\' or be PNK treated linear molecules.')
+            print '\n*Ligate Warning*: for ligation reaction, invalid input molecule removed -- ligation input DNA objects must be of class \'digest\' or be PNK treated linear molecules.\n'
         elif TL+TR+BL+BR == 1:
             pass
         elif TL+TR+BL+BR == 0:
@@ -1082,16 +1075,21 @@ def Ligate(inputDNAs):
     while i < len(inputDNAs):
         fragOne = inputDNAs[i]
         if not isinstance(fragOne, DNA):
-            raise Exception('*Ligate Error*: Ligate function was passed a non-DNA argument. Argument discarded.')
+            print '\n*Ligate Warning*: Ligate function was passed a non-DNA argument. Argument discarded.\n'
             i += 1
+            continue
+        elif fragOne.DNAclass == 'plasmid':
+            i += 1            
             continue
         j = i + 1
         while j < len(inputDNAs):
             fragTwo = inputDNAs[j]
             if not isinstance(fragOne, DNA) or not isinstance(fragTwo, DNA):
-                raise Exception('*Ligate Error*: Ligate function was passed a non-DNA argument. Argument discarded.')
                 j += 1
                 continue
+            elif fragTwo.DNAclass == 'plasmid':
+                j += 1            
+                continue                
             (LTL,LTR,LBL,LBR) = SetFlags(fragOne)
             (RTL,RTR,RBL,RBR) = SetFlags(fragTwo)
             # first3 is the number of 3' overhangs for the left fragment, and so on for the other three classifiers
@@ -1184,7 +1182,7 @@ def Ligate(inputDNAs):
             j += 1
         i += 1
     if len(products) == 0:
-        raise Exception('*Ligate Error*: ligation resulted in zero products. Returning empty list.')  
+        raise Exception('*Ligate Error*: ligation resulted in zero products.')  
     return products
 
 # Description: fragment processing function for zymo, short fragment and gel cleanups
@@ -1212,12 +1210,12 @@ def ZymoPurify(inputDNAs):
     counter = 0
     for zymoInput in inputDNAs:
         if not isinstance(zymoInput, DNA):
-            raise Exception('*Zymo Error*: Zymo purification function was passed a non-DNA argument. Argument discarded.')
+            print '\n*Zymo Warning*: Zymo purification function was passed a non-DNA argument. Argument discarded.\n'
             inputDNAs.pop(counter)
         else:
             counter += 1
     if len(inputDNAs) == 0:
-        raise Exception('*Zymo Error*: Zymo purification function passed empty input list -- will return empty output.')
+        raise Exception('*Zymo Error*: Zymo purification function passed empty input list.')
         return inputDNAs
     (outputBands, sizeTuples) = ([], [])
     for DNA in inputDNAs:
@@ -1239,7 +1237,7 @@ def ZymoPurify(inputDNAs):
 # Description: ShortFragmentCleanup() function takes a list of DNA objects and filters out < 50 bp DNA's
 def ShortFragmentCleanup(inputDNAs):
     if len(inputDNAs) == 0:
-        raise Exception('*Short Fragment Cleanup Error*: short fragment cleanup function passed empty input list -- will return empty output.')
+        raise Exception('*Short Fragment Cleanup Error*: short fragment cleanup function passed empty input list.')
         return inputDNAs
     outputBands = []
     sizeTuples = []
@@ -1265,7 +1263,7 @@ def ShortFragmentCleanup(inputDNAs):
 def GelAndZymoPurify(inputDNAs, strategy):
     # sort based on size
     if len(inputDNAs) == 0:
-        raise Exception('*Gel Purification Error*: gel purification with strategy \'"+strategy+"\' passed empty input list -- will return empty output')
+        raise Exception('*Gel Purification Error*: gel purification with strategy \'"+strategy+"\' passed empty input list.')
         return inputDNAs
     elif len(inputDNAs) == 1:
         return inputDNAs
@@ -1291,7 +1289,7 @@ def GelAndZymoPurify(inputDNAs, strategy):
                     shortFlag = True
                 interBands.append(currentTuple[1])
             if len(interBands) > 1:
-                raise Exception('*Gel Purification Error*: large fragment purification resulted in purification of multiple, possibly unintended distinct DNAs.')
+                print '\n*Gel Purification Warning*: large fragment purification resulted in purification of multiple, possibly unintended distinct DNAs.\n'
         elif strategy == 'S':
             sizeTuples.sort()
             n = 0
@@ -1310,7 +1308,7 @@ def GelAndZymoPurify(inputDNAs, strategy):
                     shortFlag = True
                 interBands.append(currentTuple[1])
             if len(interBands) > 1:
-                raise Exception('*Gel Purification Error*: small fragment purification resulted in purification of multiple, possibly unintended distinct DNAs.')
+                print '\n*Gel Purification Warning*: small fragment purification resulted in purification of multiple, possibly unintended distinct DNAs.\n'
     elif isinstance( strategy, ( int, long ) ):
         sizeTuples.sort(reverse=True)
         currentTuple = sizeTuples[0]
@@ -1333,20 +1331,20 @@ def GelAndZymoPurify(inputDNAs, strategy):
         if len(interBands) == 0:
             raise Exception('*Gel Purification Error*: for gel purification with strategy \'"+strategy+"\', no digest bands present in given range, with purification yielding zero DNA products.')
         elif len(interBands) > 1:
-            raise Exception('*Gel Purification Error*: fragment purification in range of band size '"+str(strategy)+"' resulted in purification of multiple, possibly unintended distinct DNAs.')
+            print '\n*Gel Purification Warning*: fragment purification in range of band size '"+str(strategy)+"' resulted in purification of multiple, possibly unintended distinct DNAs.\n'
     else:
         raise Exception('*Gel Purification Error*: invalid cleanup strategy argument. Valid arguments are \'L\', \'S\', or integer size of band.')
     if len(interBands) == 0:
         if lostFlag:
-            raise Exception('*Gel Purification Error*: purification with given strategy \'"+strategy+"\' returned short fragments (< 50 bp) that were lost. Returning empty products list.')
-        raise Exception('*Gel Purification Error*: purification with given strategy "'+strategy+'" yielded zero products. Returning empty products list.')
+            print '\n*Gel Purification Warning*: purification with given strategy \'"+strategy+"\' returned short fragments (< 50 bp) that were lost. Returning empty products list.\n'
+        raise Exception('*Gel Purification Error*: purification with given strategy "'+strategy+'" yielded zero products.')
     else:
         if lostFlag:
-            raise Exception('*Gel Purification Error*: purification with given strategy "'+strategy+'" returned at least one short fragment (< 50 bp) that was lost. Returning remaining products.')
+            print '\n*Gel Purification Warning*: purification with given strategy "'+strategy+'" returned at least one short fragment (< 50 bp) that was lost. Returning remaining products.\n'
             for band in interBands:
                 outputBands.append(cleanupPostProcessing(band,'gel extraction and zymo'))
         elif shortFlag:
-            raise Exception('*Gel Purification Error*: purification with given strategy "'+strategy+'" yielded short fragments (< 300 bp). Returning short fragment cleanup products.')
+            print '\n*Gel Purification Warning*: purification with given strategy "'+strategy+'" yielded short fragments (< 300 bp). Returning short fragment cleanup products.\n'
             for band in interBands:
                 outputBands.append(cleanupPostProcessing(band,'gel extraction and short fragment'))
         else:
@@ -1361,11 +1359,11 @@ def linLigate(inputDNAs):
     # self ligation
     for fragment in inputDNAs:
         if not isinstance(fragment, DNA):
-            raise Exception('*Ligate Error*: Ligate function was passed a non-DNA argument. Argument discarded.')
+            print '\n*Ligate Warning*: Ligate function was passed a non-DNA argument. Argument discarded.\n'
             continue
         (TL,TR,BL,BR) = SetFlags(fragment)
-        if fragment.DNAclass == 'plasmid':
-            raise Exception('*Ligate Error*: for ligation reaction, invalid input molecule removed -- ligation input DNA objects must be of class \'digest\' or be PNK treated linear molecules.')
+        if fragment.DNAclass != 'digest':
+            print '\n*Ligate Warning*: for ligation reaction, invalid input molecule removed -- ligation input DNA objects must be of class \'digest\'.\n'
         elif TL+TR+BL+BR == 1:
             pass
         elif TL+TR+BL+BR == 0:
@@ -1386,15 +1384,18 @@ def linLigate(inputDNAs):
     while i < len(inputDNAs):
         fragOne = inputDNAs[i]
         if not isinstance(fragOne, DNA):
-            raise Exception('*Ligate Error*: Ligate function was passed a non-DNA argument. Argument discarded.')
+            print '\n*Ligate Warning*: Ligate function was passed a non-DNA argument. Argument discarded.\n'
             i += 1
             continue
         j = i + 1
         while j < len(inputDNAs):
             fragTwo = inputDNAs[j]
             if not isinstance(fragOne, DNA) or not isinstance(fragTwo, DNA):
-                raise Exception('*Ligate Error*: Ligate function was passed a non-DNA argument. Argument discarded.')
+                print '\n*Ligate Warning*: Ligate function was passed a non-DNA argument. Argument discarded.\n'
                 j += 1
+                continue
+            elif fragOne.DNAclass != 'digest' or fragTwo.DNAclass != 'digest':
+                j += 1                
                 continue
             (LTL,LTR,LBL,LBR) = SetFlags(fragOne)
             (RTL,RTR,RBL,RBR) = SetFlags(fragTwo)
@@ -1606,10 +1607,11 @@ def GoldenGate(VectorPlasmid, InputDNAs, reASE, resistanceList):
             ggDNAs.append(vector)
             break
     if vector == None:
-        raise Exception('No viable vector input provided (must contain origin of replication).')
+        raise Exception('For GoldenGate function, no viable vector input provided (must contain origin of replication).')
     for ggDNA in InputDNAs:
         if ggDNA.DNAclass != 'plasmid':
-            raise Exception('Linear inputs to GoldenGate function disallowed.')
+            print '\n*GoldenGate Warning*: linear inputs disallowed.\n'
+            continue
         try:
             ggDigest = Digest(ggDNA, (reASE, ))
             ggDNAs += ggDigest
@@ -1684,6 +1686,10 @@ def HasColE2(seq):
     # 'AGCGCCTCAGCGCGCCGTAGCGTCGATAAAAATTACGGGCTGGGGCGAAACTACCATCTGTTCGAAAAGGTCCGTAAATGGGCCTACAGAGCGATTCGTCAGGGCTGGCCTGTATTCTCACAATGGCTTGATGCCGTTATCCAGCGTGTCGAAATGTACAACGCTTCGCTTCCCGTTCCGCTTTCTCCGGCTGAATGTCGGGCTATTGGCAAGAGCATTGCGAAATATACACACAGGAAATTCTCACCAGAGGGATTTTCCGCTGTACAGGCCGCTCGCGGTCGCAAGGGCGGAACTAAATCTAAGCGCGCAGCAGTTCCTACATCAGCACGTTCGCTGAAACCGTGGGAGGCATTAGGCATCAGTCGAGCGACGTACTACCGAAAATTAAAATGTGACCCAGACCTCGCnnnntga'
     #longer element shown in the Anderson lab that stably replicates
 
+def HasColE1(seq):
+    regexp = 'tcatgaccaaaatcccttaacgtgagttttcgttccactgagcgtcagaccccgtagaaaagatcaaaggatcttcttgagatcctttttttctgcgcgtaatctgctgcttgcaaacaaaaaaaccaccgctaccagcggtggtttgtttgccggatcaagagcta[cagt]caactctttttccgaaggtaactggcttcagcagagcgcagataccaaatactgt[cagt]cttctagtgtagccgtagttaggccaccacttcaagaactctgtagcaccgcctacatacctcgctctgctaatcctgttaccagtggctgctgccagtggcgataagtcgtgtcttaccgggttggactcaagacgatagttaccggataaggcgcagcggtcgggctgaacggggggttcgtgcacacagcccagcttggagcgaacgacctacaccgaactgagatacctacagcgtgagc[cagt][cagt]tgagaaagcgccacgcttcccgaagggagaaaggcggacaggtatccggtaagcggcagggtcggaacaggagagcgcacgagggagcttccaggggg[acgt]aacgcctggtatctttatagtcctgtcgggtttcgccacctctgacttgagcgtcgatttttgtgatgctcgtcaggggggc[acgt]gagcct[ga]tggaaaaacgccagcaacgcggcc' 
+    return HasFeature(regexp, seq)
+
 def HasR6K(seq):
     #has R6k, data from Anderson lab observations
     regexp = 'gcagttcaacctgttgatagtacgtactaagctctcatgtttcacgtactaagctctcatgtttaacgtactaagctctcatgtttaacgaactaaaccctcatggctaacgtactaagctctcatggctaacgtactaagctctcatgtttcacgtactaagctctcatgtttgaacaataaaattaatataaatcagcaacttaaatagcctctaaggttttaagttttataagaaaaaaaagaatatataaggcttttaaagcttttaaggtttaacggttgtggacaacaagccagggatgtaacgcactgagaagcccttagagcctctcaaagcaattttgagtgacacaggaacacttaacggctgacatggg'.lower()
@@ -1710,7 +1716,10 @@ def HasSpecR(seq):
     regex='MRSRNWSRTLTERSGGNGAVAVFMACYDCFFGVQSMPRASKQQARYAVGRCLMLWSSNDVTQQGSRPKTKLNIMREAVIAEVSTQLSEVVGVIERHLEPTLLAVHLYGSAVDGGLKPHSDIDLLVTVTVRLDETTRRALINDLLETSASPGESEILRAVEVTIVVHDDIIPWRYPAKRELQFGEWQRNDILAGIFEPATIDIDLAILLTKAREHSVALVGPAAEELFDPVPEQDLFEALNETLTLWNSPPDWAGDERNVVLTLSRIWYSAVTGKIAPKDVAADWAMERLPAQYQPVILEARQAYLGQEEDRLASRADQLEEFVHYVKGEITKVVGK'
     return HasAAFeature(regex, seq)
 def HasAmpR(seq):
-    regex='MSIQHFRVALIPFFAAFCLPVFAHPETLVKVKDAEDQLGARVGYIELDLNSGKILESFRPEERFPMMSTFKVLLCGAVLSRIDAGQEQLGRRIHYSQNDLVEYSPVTEKHLTDGMTVRELCSAAITMSDNTAANLLLTTIGGPKELTAFLHNMGDHVTRLDRWEPELNEAIPNDERDTTMPVAMATTLRKLLTGELLTLASRQQLIDWMEADKVAGPLLRSALPAGWFIADKSGAGERGSRGIIAALGPDGKPSRIVVIYTTGSQATMDERNRQIAEIGASLIKHW'
+    # was: regex='MSIQHFRVALIPFFAAFCLPVFAHPETLVKVKDAEDQLGARVGYIELDLNSGKILESFRPEERFPMMSTFKVLLCGAVLSRIDAGQEQLGRRIHYSQNDLVEYSPVTEKHLTDGMTVRELCSAAITMSDNTAANLLLTTIGGPKELTAFLHNMGDHVTRLDRWEPELNEAIPNDERDTTMPVAMATTLRKLLTGELLTLASRQQLIDWMEADKVAGPLLRSALPAGWFIADKSGAGERGSRGIIAALGPDGKPSRIVVIYTTGSQATMDERNRQIAEIGASLIKHW'
+    # compared with: 'MSIQHFRVALIPFFAAFCLPVFAHPETLVKVKDAEDQLGARVGYIELDLNSGKILESFRPEERFPMMSTFKVLLCGAVLSRIDAGQEQLGRRIHYSQNDLVEYSPVTEKHLTDGMTVRELCSAAITMSDNTAANLLLTTIGGPKELTAFLHNMGDHVTRLDRWEPELNEAIPNDERDTTMPVAMATTLRKLLTGELLTLASRQQLIDWMEADKVAGPLLRSALPAGWFIADKSGAGERGSRGIIAALGPDGKPSRIVVIYTTGSQATMDERNRQIAEIGASLIKHW'
+    # result: aligned with clustal, got following output:
+    regex = 'MSTFKVLLCGAVLSR[VI]DAGQEQLGRRIHYSQNDLVEYSPVTEKHLTDGMTVRELCSAAITMSDNTAANLLLTTIGGPKELTAFLHNMGDHVTRLDRWEPELNEAIPNDERDTTMP[VA]AMATTLRKLLTGELLTLASRQQLIDWMEADKVAGPLLRSALPAGWFIADKSGAGERGSRGIIAALGPDGKPSRIVVIYTTGSQATMDERNRQIAEIGASLIKHW'
     return HasAAFeature(regex, seq)
 def HasKanR(seq):
     regex='MSHIQRETSCSRPRLNSNMDADLYGYKWARDNVGQSGATIYRLYGKPDAPELFLKHGKGSVANDVTDEMVRLNWLTEFMPLPTIKHFIRTPDDAWLLTTAIPGKTAFQVLEEYPDSGENIVDALAVFLRRLHSIPVCNCPFNSDRVFRLAQAQSRMNNGLVDASDFDDERNGWPVEQVWKEMHKLLPFSPDSVVTHGDFSLDNLIFDEGKLIGCIDVGRVGIADRYQDLAILWNCLGEFSPSLQKRLFQKYGIDNPDMNKLQFHLMLDEFF'
@@ -1731,6 +1740,8 @@ def HasResistance(seq):
     return retval
 def HasReplicon(seq):
     retval = []
+    if HasColE1(seq):
+        retval.append('ColE1')
     if HasColE2(seq):
         retval.append('ColE2')
     if HasR6K(seq):
@@ -1744,18 +1755,20 @@ class Strain(object):
     def __init__(self, name="", replication="", resistance="", plasmid=""):
         #pass everything in as a comma separated list
         self.name = name
-        self.replication = replication.split(",")
-        self.resistance = resistance.split(",") #should include the plasmid resistance!
+        delimit = re.compile(r'\s*,\s*')
+        self.replication = delimit.split(replication)
+        self.resistance = delimit.split(resistance) #should include the plasmid resistance!
         if(plasmid != ""):
-            self.plasmids = [plasmid] #DNA object
+            self.plasmids = [plasmid, ] #DNA object
         else:
             self.plasmids = []
 
 # Description: accepts list of dnas and a strain, it should output a list of DNAs that survive the transformation
 # this would completely reciplate the TransformPlateMiniprep cycle, it returns all the DNAs present in the cell
-def TransformPlateMiniprep(DNAs, strain, selection_antibiotic):
+def TransformPlateMiniprep(DNAs, strain):
     #strain is an object
     transformed = strain.plasmids
+    selectionList = []
     for dna in DNAs:
         #check if circular, confers new resistance on strain, and doesn't compete with existing plasmid in strain
         if dna.topology == 'circular':
@@ -1770,7 +1783,9 @@ def TransformPlateMiniprep(DNAs, strain, selection_antibiotic):
             for resistance in resistances:
                 if not(resistance in strain.resistance):
                     newR = True
-                    success_msg += "Transformation of "+dna.name+" into "+strain.name+" successful -- use "+resistance+" antibiotic selection."
+                    if not resistance in selectionList:
+                        selectionList.append(resistance)
+                    success_msg += "\nTransformation of "+dna.name+" into "+strain.name+" successful -- use "+resistance+" antibiotic selection.\n"
             for replicon in replicons:
                 #has the pir/repA necessary for ColE2/R6K?
                 if replicon in strain.replication:
@@ -1797,7 +1812,7 @@ def TransformPlateMiniprep(DNAs, strain, selection_antibiotic):
                 if not(replicon_ok):
                     raise Exception('*Transformation Error*: for transformation of "'+dna.name+'" into "'+strain.name+'", plasmid replicon won\'t function in this strain')
                 if not(no_existing_plasmid):
-                    raise Exception('*Transformation Error*: for transformation of "'+dna.name+'" into "'+strain.name+'", transformed plasmid replicon competes with existing plasmid in strain')
+                    raise Exception('*Transformation Error*: for transformation of "'+dna.name+'" into "'+strain.name+'", transformed plasmid replicon competes with existing plasmid in strain') 
     if len(transformed)<1:
-        print "WARNING: For transformation of "+dna.name+" into "+strain.name+", no DNAs successfully transformed. DNAs may be linear."
+        raise Exception("*Transformation Error*: For transformation of "+dna.name+" into "+strain.name+", no DNAs successfully transformed. DNAs may be linear.")
     return transformed
