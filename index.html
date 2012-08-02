@@ -316,6 +316,13 @@ ligation_Products = Ligate(insert_Purification+vector_Purification)
 print '--> Ligation product, pET16B N-terminal His10 GFP:' 
 for product in ligation_Products: 
 	product.prettyPrint()
+
+# Transform into strain supporting certain plasmid origins
+sbi001 = Strain("sbi001", "pUC, P15A, ColE2, ColE1", "", "")
+miniprep_DNA = TransformPlateMiniprep(ligation_Products, sbi001)
+print '--> Miniprep product, after Ampicillin selection:' 
+for product in miniprep_DNA:
+	product.prettyPrint()
 </textarea>
 		</div>
 		<div style="width:480px; height: 33%">

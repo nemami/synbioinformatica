@@ -105,7 +105,8 @@ class MainHandler(webapp.RequestHandler):
 			"DNA": DNA, "TransformPlateMiniprep": synbioinformatica.TransformPlateMiniprep, "ZymoPurify": synbioinformatica.ZymoPurify,
 			"ShortFragmentCleanup": synbioinformatica.ShortFragmentCleanup, "GelAndZymoPurify": synbioinformatica.GelAndZymoPurify,
 			"Ligate": synbioinformatica.Ligate, "Digest": synbioinformatica.Digest, "PCR": synbioinformatica.PCR, 
-			"EnzymeDictionary": synbioinformatica.EnzymeDictionary, "restrictionEnzyme": restrictionEnzyme, "Strain": Strain}
+			"EnzymeDictionary": synbioinformatica.EnzymeDictionary, "restrictionEnzyme": restrictionEnzyme, "Strain": Strain, 
+			"TreatPNK": synbioinformatica.TreatPNK, "GoldenGate": synbioinformatica.GoldenGate, "Primers": synbioinformatica.Primers}
 			exec('EnzymeDictionary = EnzymeDictionary()', safe_globals)
 			exec(cmd, safe_globals)
 			if turtle.is_drawing():
