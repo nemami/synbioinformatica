@@ -3,8 +3,10 @@
 import sys, re, math
 from decimal import *
 
+# TODO: work on naming scheme
+# TODO: add more ORIs
 # TODO: assemblytree alignment
-# TODO: SOEing, Temperature control, Colony picking?, Sequence() fxn (PCR 1000 bp read), 
+# TODO: SOEing, Temperature control, Colony picking?
 # TODO: hashing and recognition of redundant products
 # TODO: for PCR, identification of primers on the edge of a circular sequence
 # TODO: tutorials
@@ -239,6 +241,84 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
             else:
                 raise Exception('*PCR Error*: forward primer must anneal upstream of the reverse.')
         return pcrPostProcessing(inputTuple, parent, fwdTM, revTM)
+    except:
+        raise
+
+# Description: identifies errors in primer design and raises exceptions based on errors and their context
+def SequenceErrorHandling(InputTuple):
+    (fwd,matchCount,matchedAlready,currentPrimer) = InputTuple
+    if len(currentPrimer.sequence) > 7:
+        abbrev = currentPrimer.sequence[:3]+'...'+currentPrimer.sequence[-3:]
+    else:
+        abbrev = currentPrimer.sequence
+    if fwd:
+        if matchCount > 1:                  # if matches in forward direction more than once
+            raise Exception('*Primer error*: primer '+abbrev+' anneals to multiple sites in template.')
+        elif matchCount == 1:                # if matches in the forward direction exactly once
+            matchedAlready = 1
+            return matchedAlready
+    else:
+        if matchCount > 1:                  # if matches in reverse direction more than once
+            if matchedAlready == 1:                # ... and already matched in forward direction
+                raise Exception('*Primer error*: primer '+abbrev+' anneals to multiple sites in template AND primer '+abbrev+' anneals in both orientations.')
+            raise Exception('*Primer error*: primer '+abbrev+' anneals to multiple sites in template.')
+        elif matchCount == 1:                 # if matches in the reverse direction exactly once
+            if matchedAlready == 1:                # ... and already matched in forward direction
+                raise Exception('*Primer error*: primer '+abbrev+' primes in both orientations.')
+            else:
+                matchedAlready = 2
+        if matchedAlready == 0:                # if no matches
+            raise Exception('*Primer error*: primer '+abbrev+' does not anneal in either orientation.')
+        return matchedAlready
+
+def Sequence(InputDNA, inputPrimer):
+    for seqInput in (InputDNA, inputPrimer):
+        if not isinstance(seqInput, DNA):
+            raise Exception('*Sequencing error*: Sequence function was passed a non-DNA argument.')
+            return None
+    # Suffix Tree string initialization, non-alphabet character concatenation
+    (template, primer) = (InputDNA.sequence, inputPrimer)
+    # Tuple of assemblyTree 'children', for the purpose of child/parent assignment
+    # Initialization of all parameters, where indices is the start / stop indices + direction of annealing primer sequences 
+    (fwdTM, revTM, indices, counter, rightStub, leftStub, nextOrientation, fwd, rev, read) = (0,0,[0,0,0],0,'','',0,0,0,'')
+    try:
+        # NOTE: no assumptions made about input primer directionality
+        currentSequence = primer.sequence + '$'
+        fwdMatch = LCS(currentSequence.upper(), template.upper())
+        (matchCount, forwardMatchIndicesTuple, forwardPrimerStub) = fwdMatch.LCSasRegex(currentSequence, template, 1)
+        (matchedAlready, start, stop) = (0,0,0) # Defaults
+        # Forward case error handling: delegated to SequenceErrorHandling function
+        matchedAlready = SequenceErrorHandling((1,matchCount,matchedAlready,primer))
+        revMatch = LCS(currentSequence.upper(),reverseComplement(template).upper())
+        (matchCount, reverseMatchIndicesTuple, reversePrimerStub) = revMatch.LCSasRegex(currentSequence, template, 0)
+        # Reverse case error handling: delegated to SequenceErrorHandling function
+        matchedAlready = SequenceErrorHandling((0,matchCount,matchedAlready,primer))
+        if matchedAlready == 1:
+            (fwdStart, fwdEnd, fwd) = (forwardMatchIndicesTuple[0], forwardMatchIndicesTuple[1], 1)
+        elif matchedAlready == 2:
+            (revStart, revEnd, rev) = (reverseMatchIndicesTuple[0], reverseMatchIndicesTuple[1], 1)
+        if fwd:
+            bindingTM = primerTm(template[fwdStart:fwdEnd])
+            if InputDNA.DNAclass == 'plasmid':
+                if fwdEnd + 1001 > len(template):
+                    read = template[fwdEnd+1:] + template[:fwdEnd+1001-len(template)]
+                else:
+                    read = template[fwdEnd+1:fwdEnd+1001]
+            else:
+                read = template[fwdEnd+1:fwdEnd+1001]
+        else:
+            bindingTM = primerTm(template[revStart:revEnd])
+            if InputDNA.DNAclass == 'plasmid':
+                if revStart - 1001 < 0:
+                    read = template[revStart-1001+len(template):] + template[:revStart]
+                else:
+                    read = template[revStart-1001:revStart]
+            else:
+                read = template[revStart-1001:revStart]
+        if bindingTM >= 55:
+            return read
+        else:
+            return ''
     except:
         raise
 
