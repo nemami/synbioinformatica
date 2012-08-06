@@ -6,9 +6,9 @@ from decimal import *
 # TODO: work on naming scheme
 # TODO: add more ORIs
 # TODO: assemblytree alignment
-# TODO: SOEing, Temperature control, Colony picking?
-# TODO: hashing and recognition of redundant products
-# TODO: for PCR, identification of primers on the edge of a circular sequence
+# TODO: SOEing ?
+# TODO: (digestion, ligation) redundant products
+# TODO: for PCR and Sequencing, renormalize based on LCS
 # TODO: tutorials
 
 dna_alphabet = {'A':'A', 'C':'C', 'G':'G', 'T':'T',
@@ -127,11 +127,10 @@ class LCS:
             oldr.suffixLink = s
   
     def LongestCommonSubstring(self):
-        start = self.deepest[1]-self.deepest[0]+1
-        end = self.deepest[1]+1
+        start, end  = self.deepest[1]-self.deepest[0]+1, self.deepest[1]+1
         return (self.str[start:end],start,end)
     def LCSasRegex(self, currentPrimer, template, fwd):
-        annealingRegion = self.str[ self.deepest[1] - self.deepest[0] + 1 : self.deepest[1] + 1 ]
+        annealingRegion = self.str[self.deepest[1] - self.deepest[0] + 1 : self.deepest[1] + 1]
         if not fwd:
             annealingRegion = reverseComplement(annealingRegion)
         (AnnealingMatches, matchCount, MatchIndicesTuple) = ([], 0, ())
