@@ -6,7 +6,7 @@ from decimal import *
 # TODO: work on naming scheme
 # TODO: add more ORIs
 # TODO: assemblytree alignment
-# TODO: SOEing ?
+# TODO: SOEing
 # TODO: (digestion, ligation) redundant products
 # TODO: for PCR and Sequencing, renormalize based on LCS
 # TODO: tutorials
