@@ -6,7 +6,7 @@ from decimal import *
 # TODO: work on naming scheme
 # TODO: add more ORIs
 # TODO: assemblytree alignment
-# TODO: SOEing
+# TODO: Wobble, SOEing
 # TODO: (digestion, ligation) redundant products
 # TODO: for PCR and Sequencing, renormalize based on LCS
 # TODO: tutorials
@@ -234,9 +234,10 @@ def PCR(primer1DNA, primer2DNA, templateDNA):
         if fwdStart < revStart and fwdEnd < revEnd:
             parent = DNA('PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name, leftStub+template[fwdStart:revEnd]+rightStub)
         else:
+            # TODO remove
             # circular template is exception to the fwdStart < revStart and fwdEnd < revEnd rule
             if templateDNA.topology == 'circular':  
-                parent = DNA('PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name, leftStub+template[fwdStart:len(template)-1]+template[:revStart]+rightStub)
+                parent = DNA('PCR product','PCR product of '+primer1DNA.name+', '+primer2DNA.name+' on '+templateDNA.name, leftStub+template[fwdStart:len(template)]+template[:revEnd]+rightStub)
             else:
                 raise Exception('*PCR Error*: forward primer must anneal upstream of the reverse.')
         return pcrPostProcessing(inputTuple, parent, fwdTM, revTM)
@@ -950,13 +951,17 @@ def rPrimers(product, template, baseCase):
             diffLen = fMI[0] - rMI[1]
             insert = product.sequence[rMI[1]:fMI[0]]
         if 60 < diffLen <= 100:
-            primers = DesignWobble(product, insert, (rMI[1], fMI[0]))
+            primers, enz = DesignWobble(product, insert, (rMI[1], fMI[0]))
         elif 1 <= diffLen <= 60:
-            primers = DesignEIPCR(product, insert, (rMI[1], fMI[0]))
+            primers, enz = DesignEIPCR(product, insert, (rMI[1], fMI[0]), template)
+            if primers[0] == 0:
+                print '*Primer Warning*: EIPCR primers could not be designed for given template and product. Try removing BsaI, BseRI, and/or BsmBI sites from template plasmid. Returning null data.'
+                return [], ''
         # test the PCR --> will return an exception if they don't anneal
+        # TODO: FIX THIS / ERR HANDLING
         amplifies = PCR(primers[0], primers[1], template)
         # if it amplifies up ok, then return the primers
-        return primers
+        return primers, enz
     # may be misaligned ==> realign and recurse
     except:
         baseCase += 1
@@ -997,15 +1002,37 @@ def getAnnealingRegion(template, fwd):
             break
     return currentRegion
 
+def chooseReachover(plasmid):
+    EnzDict = EnzymeDictionary()
+    bsaI = EnzDict['BsaI']; bsaMatch = bsaI.find_sites(plasmid); bsaFlag = len(bsaMatch) > 0
+    bsmBI = EnzDict['BsmBI']; bsmMatch = bsmBI.find_sites(plasmid); bsmFlag = len(bsmMatch) > 0    
+    bseRI = EnzDict['BseRI']; bseMatch = bseRI.find_sites(plasmid); bseFlag = len(bseMatch) > 0
+    if not bsaFlag:
+        # use BsaI
+        tail = "taaattGGTCTCA"
+        return bsaI, tail, 2
+    if not bsmFlag:
+        # use bsmBI
+        tail = 'taaattCGTCTCA'
+        return bsmBI, tail, 2
+    if not bseFlag:       
+        # use bsmBI
+        tail = 'taaattGAGGAGattcccta'
+        return bseRI, tail, 1
+    return 0, 0, 0
+
 #given a parent plasmid and a desired product plasmid, design the eipcr primers
 #use difflib to figure out where the differences are
 #if there is a convenient restriction site in or near the modification, use that
 # otherwise, check if there exists bseRI or bsaI sites, and design primers using those
 # print/return warning if can't do this via eipcr (insert span too long)
 
-def DesignEIPCR(product, insert, diffTuple):
+def DesignEIPCR(product, insert, diffTuple, template):
     # use 60 bp to right of mutation as domain for annealing region design
     (fwdStart, fwdEnd) = (diffTuple[1], diffTuple[1]+60)
+    enz, tail, halfSiteSize = chooseReachover(template)
+    if enz == 0:
+        return 0, 0
     # accounting for the wrap around case
     if fwdEnd > len(product.sequence):
         fwdEnd = fwdEnd % len(product.sequence)
@@ -1019,28 +1046,29 @@ def DesignEIPCR(product, insert, diffTuple):
     else:
         revAnneal = getAnnealingRegion(product.sequence[revStart:revEnd], 0)
     # use BsaI 'taaGGTCTCx1234' to do reachover digest and ligation
-    tail = "taaaGGTCTCA"
     # wrap around case
     if not diffTuple[1] > diffTuple[0]:
         half = ((diffTuple[1] + len(product.sequence) - diffTuple[0]) / 2) + diffTuple[0]
     else:
         half = ((diffTuple[1] - diffTuple[0]) / 2) + diffTuple[0]
     # the 4 bp in the overhang must not contain any N's --> otherwise, ligation won't work
-    overhang = product.sequence[half - 2 : half + 2]
+    overhang = product.sequence[half - halfSiteSize : half + halfSiteSize]
     while 'N' in overhang.upper():
             half = half + 1
-            overhang = product.sequence[half - 2 : half + 2]
-    product.sequence[half - 2 : diffTuple[1] + 1]
+            overhang = product.sequence[half - halfSiteSize : half + halfSiteSize]
     # Accounting for the == 0 case, which would otherwise send the mutagenic region to ''
     if diffTuple[1] == 0:
-      fwdPrimer = DNA('primer','fwd EIPCR '+product.name, tail + product.sequence[half - 2 :] + fwdAnneal)
+        fwdPrimer = DNA('primer','fwd EIPCR primer for '+product.name, tail + product.sequence[half - halfSiteSize :] + fwdAnneal)
     else:
-        fwdPrimer = DNA('primer','fwd EIPCR '+product.name, tail + product.sequence[half - 2 : diffTuple[1]] + fwdAnneal)
-    if half + 2 == 0:
-      revPrimer = DNA('primer','rev EIPCR '+product.name, tail + reverseComplement(product.sequence[ diffTuple[0] :]) + revAnneal)
+        # Originally: product.sequence[half - 2 : diffTuple[1] + 1]
+        fwdPrimer = DNA('primer','fwd EIPCR primer for '+product.name, tail + product.sequence[half - halfSiteSize : diffTuple[1]] + fwdAnneal)
+        # print 'AFTER TAIL', product.sequence[half - halfSiteSize : diffTuple[1] + 1]
+    if half + halfSiteSize == 0:
+      revPrimer = DNA('primer','rev EIPCR primer for '+product.name, tail + reverseComplement(product.sequence[ diffTuple[0] :]) + revAnneal)
     else:  
-        revPrimer = DNA('primer','rev EIPCR '+product.name, tail + reverseComplement(product.sequence[ diffTuple[0] : half + 2]) + revAnneal)
-    return fwdPrimer, revPrimer
+        revPrimer = DNA('primer','rev EIPCR primer for '+product.name, tail + reverseComplement(product.sequence[ diffTuple[0] : half + halfSiteSize]) + revAnneal)
+        # print 'REV AFTER TAIL', reverseComplement(product.sequence[ diffTuple[0] : half + halfSiteSize])
+    return (fwdPrimer, revPrimer), enz
 
 # TODO: Implement this, along with restriction site checking?
 def DesignWobble(parent, product):
@@ -1145,7 +1173,7 @@ def Ligate(inputDNAs):
                 ligated = DNA('plasmid',fragment.name+' self-ligation',fragment.topLeftOverhang.sequence+fragment.sequence)
                 products.append(ligatePostProcessing(ligated, (fragment, ), 'Self-ligate ('+fragment.name+') with DNA ligase for 30 minutes at room-temperature.'))
         elif fragment.bottomLeftOverhang.sequence != '':
-            if isComplementary(fragment.topLeftOverhang.sequence.lower(), fragment.topRightOverhang.sequence.lower()):
+            if isComplementary(fragment.bottomLeftOverhang.sequence.lower(), fragment.topRightOverhang.sequence.lower()):
                 ligated = DNA('plasmid',fragment.name+' self-ligation',fragment.sequence+fragment.topRightOverhang.sequence)
                 products.append(ligatePostProcessing(ligated, (fragment, ), 'Self-ligate ('+fragment.name+') with DNA ligase for 30 minutes at room-temperature.'))
     if len(products) > 0 or len(inputDNAs) == 1:
